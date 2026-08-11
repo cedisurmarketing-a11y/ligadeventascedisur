@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruteo de Visitas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5F3EF;
+    --surface: #FFFFFF;
+    --border: #D8D4CC;
+    --text: #1A1814;
+    --text2: #6B6760;
+    --text3: #9E9B97;
+    --accent: #1d3a8f;
+    --accent-light: #E8EDFB;
+    --accent-text: #1d3a8f;
+    --card-presencial-bg: #FFF5ED;
+    --card-presencial-border: #F5C99A;
+    --card-ecom-bg: #EAF5FB;
+    --card-ecom-border: #90CDE8;
+    --card-tel-bg: #F3EEFB;
+    --card-tel-border: #C3A8E8;
+    --card-bought-bg: #E6F7ED;
+    --card-bought-border: #7DC99A;
+    --card-notbought-bg: #FDEAEA;
+    --card-notbought-border: #E89090;
+    --btn-check-color: #2D8A52;
+    --btn-x-color: #C0392B;
+    --shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 2rem; }
+
+  /* HEADER */
+  .header { background: var(--accent); padding: 1.25rem 1.25rem 1rem; position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+  .app-name { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: rgba(255,255,255,0.55); text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .today-badge { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.12); padding: 3px 10px; border-radius: 20px; }
+  .btn-search { background: none; border: none; cursor: pointer; padding: 4px; color: rgba(255,255,255,0.75); display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
+  .btn-search svg { width: 18px; height: 18px; }
+
+  /* BUSCADOR */
+  .search-overlay { display: none; padding: 0 0 0.75rem; }
+  .search-overlay.active { display: block; }
+  .search-input-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; padding: 0.5rem 0.75rem; }
+  .search-input-wrap svg { width: 14px; height: 14px; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+  .search-input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; }
+  .search-input::placeholder { color: rgba(255,255,255,0.45); }
+  .btn-search-clear { background: none; border: none; cursor: pointer; padding: 0; color: rgba(255,255,255,0.5); font-size: 16px; line-height: 1; }
+
+  select {
+    width: 100%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    padding: 0.6rem 0.75rem; border-radius: 8px; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.6)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; cursor: pointer; margin-bottom: 0.75rem;
+  }
+  select option { background: #1d3a8f; color: #fff; }
+  select:focus { outline: none; border-color: rgba(255,255,255,0.5); }
+
+  .days-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .days-strip::-webkit-scrollbar { display: none; }
+  .day-tab { flex-shrink: 0; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); background: transparent; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .day-tab.active { background: #fff; color: var(--accent); border-color: transparent; font-weight: 600; }
+
+  /* STATS */
+  .stats-bar { display: flex; gap: 8px; padding: 1rem 1.25rem 0.5rem; }
+  .stat { flex: 1; background: var(--surface); border-radius: 10px; padding: 0.6rem 0.75rem; border: 1px solid var(--border); text-align: center; }
+  .stat.bought { background: var(--card-bought-bg); border-color: var(--card-bought-border); }
+  .stat.notbought { background: var(--card-notbought-bg); border-color: var(--card-notbought-border); }
+  .stat-num { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; color: var(--text); line-height: 1.1; }
+  .stat.bought .stat-num { color: #1F7A42; }
+  .stat.notbought .stat-num { color: #A02020; }
+  .stat-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .stat.bought .stat-label { color: #2D8A52; }
+  .stat.notbought .stat-label { color: #C0392B; }
+
+  /* FILTROS */
+  .filter-bar { display: flex; gap: 8px; padding: 0.25rem 1.25rem 0.5rem; justify-content: center; }
+  .filter-chip { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 20px; border: 1px solid transparent; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--text2); user-select: none; -webkit-tap-highlight-color: transparent; }
+  .filter-chip.presencial { background: var(--card-presencial-bg); border-color: var(--card-presencial-border); }
+  .filter-chip.ecom { background: var(--card-ecom-bg); border-color: var(--card-ecom-border); }
+  .filter-chip.telefonico { background: var(--card-tel-bg); border-color: var(--card-tel-border); }
+  .filter-chip input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+
+  /* LISTA */
+  .list { padding: 0.5rem 1.25rem; display: flex; flex-direction: column; gap: 8px; }
+  .search-results-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); padding: 0.75rem 1.25rem 0.25rem; }
+
+  /* TARJETAS */
+  .client-card { border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; transition: background 0.2s, border-color 0.2s, opacity 0.2s; }
+  .client-card.presencial { background: var(--card-presencial-bg); border: 1px solid var(--card-presencial-border); }
+  .client-card.ecom { background: var(--card-ecom-bg); border: 1px solid var(--card-ecom-border); }
+  .client-card.telefonico { background: var(--card-tel-bg); border: 1px solid var(--card-tel-border); }
+  .client-card.bought { background: var(--card-bought-bg) !important; border-color: var(--card-bought-border) !important; }
+  .client-card.notbought { background: var(--card-notbought-bg) !important; border-color: var(--card-notbought-border) !important; opacity: 0.75; }
+  .client-card.notbought .client-name { text-decoration: line-through; color: var(--text3); }
+
+  .card-main { padding: 0.875rem 0.875rem 0.875rem 1rem; display: flex; align-items: center; gap: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+  .order-num { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--text3); min-width: 22px; flex-shrink: 0; }
+  .client-info { flex: 1; min-width: 0; }
+  .client-name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .client-subtext { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .client-card.expanded .client-name { -webkit-line-clamp: unset; overflow: visible; }
+
+  /* CHIP GEO EN TARJETA CERRADA */
+  .geo-pin-chip { display: none; }
+  .geo-pin-chip.visible { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 500; color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 20px; padding: 1px 7px; margin-top: 4px; }
+
+  /* CHIP SOLICITUD PENDIENTE */
+  .sol-chip { display: none; margin-top: 5px; }
+  .sol-chip.visible { display: inline-flex; align-items: center; gap: 4px; background: #F5F0FF; border: 1px solid #C4B5FD; border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #7C3AED; }
+  .sol-chip svg { width: 10px; height: 10px; flex-shrink: 0; }
+
+  .card-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .btn-action { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  .btn-action:active { transform: scale(0.88); }
+  .btn-action svg { width: 15px; height: 15px; pointer-events: none; }
+  .client-card.bought .btn-check { background: var(--btn-check-color); border-color: var(--btn-check-color); }
+  .client-card.notbought .btn-x { background: var(--btn-x-color); border-color: var(--btn-x-color); }
+
+  /* DETALLE */
+  .card-detail { display: none; padding: 0 1rem 1rem 1rem; }
+  .client-card.expanded .card-detail { display: block; }
+  .detail-divider { height: 1px; background: rgba(0,0,0,0.08); margin-bottom: 0.75rem; }
+  .detail-row { margin-bottom: 0.5rem; }
+  .detail-label { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text3); margin-bottom: 2px; }
+  .detail-value { font-size: 13px; color: var(--text); line-height: 1.4; }
+  .btn-maps { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 0.75rem; font-size: 13px; font-weight: 600; color: var(--accent-text); background: var(--accent-light); border: none; padding: 9px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+  .btn-maps svg { width: 13px; height: 13px; }
+
+  /* BOTÓN GEOLOCALIZAR */
+  .btn-geo { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #0F766E; background: #F0FDFA; border: 1.5px solid #5EEAD4; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.15s; }
+  .btn-geo:active { background: #CCFBF1; }
+  .btn-geo:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-geo svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .geo-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600; margin-top: 8px; width: 100%; }
+  .geo-chip.ok { background: #F0FDFA; color: #0F766E; border: 1px solid #5EEAD4; }
+  .geo-chip.pending { background: #FFF7ED; color: #C2410C; border: 1px solid #FED7AA; }
+  .geo-chip svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+  /* ÚLTIMAS 4 VISITAS */
+  .detail-body { display: flex; gap: 12px; align-items: flex-start; }
+  .detail-data { flex: 1; min-width: 0; }
+  .visitas-section { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .visitas-label { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); white-space: nowrap; text-align: right; }
+  .visitas-row { display: flex; flex-direction: row; gap: 5px; }
+  .visita-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .visita-fecha { font-size: 8px; color: var(--text3); font-family: 'DM Mono', monospace; text-align: center; }
+  .visita-btn { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); background: transparent; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .visita-btn svg { width: 10px; height: 10px; }
+  .visita-btn.bought { background: var(--btn-check-color); border-color: var(--btn-check-color); }
+  .visita-btn.notbought { background: var(--btn-x-color); border-color: var(--btn-x-color); }
+  .visita-btn.none { background: transparent; border-color: var(--border); }
+
+  /* BOTÓN SOLICITAR CAMBIO */
+  .btn-solicitar { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #7C3AED; background: #F5F0FF; border: 1.5px solid #C4B5FD; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.15s; }
+  .btn-solicitar:active { background: #EDE9FE; }
+  .btn-solicitar svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  /* MODAL SOLICITUD */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 20px 20px 0 0; padding: 1.5rem 1.25rem 2rem; width: 100%; max-width: 480px; animation: slideUp 0.25s ease; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 1.25rem; }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .modal-cliente { font-size: 12px; color: var(--text3); margin-bottom: 1.25rem; font-weight: 500; }
+
+  .tipo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1.25rem; }
+  .tipo-btn { padding: 0.75rem 0.4rem; border-radius: 10px; border: 2px solid var(--border); background: var(--bg); font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text2); cursor: pointer; text-align: center; transition: all 0.15s; line-height: 1.4; }
+  .tipo-btn .tipo-icon { display: block; font-size: 18px; margin-bottom: 4px; }
+  .tipo-btn.selected { border-color: #7C3AED; background: #F5F0FF; color: #7C3AED; }
+
+  .modal-field { margin-bottom: 1rem; }
+  .modal-field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+  .modal-field input, .modal-field select, .modal-field textarea { width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: #fff; outline: none; }
+  .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { border-color: #7C3AED; }
+  .modal-field textarea { resize: none; height: 80px; }
+
+  .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+  .btn-cancelar { flex: 1; padding: 0.75rem; border-radius: 10px; border: 1.5px solid var(--border); background: transparent; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: var(--text2); cursor: pointer; }
+  .btn-enviar { flex: 2; padding: 0.75rem; border-radius: 10px; border: none; background: #7C3AED; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .btn-enviar:active { background: #6D28D9; }
+  .btn-enviar:disabled { background: var(--border); color: var(--text3); cursor: not-allowed; }
+
+  /* POP-UP CONFIRMACIÓN */
+  .confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 300; align-items: center; justify-content: center; padding: 1.5rem; }
+  .confirm-overlay.open { display: flex; }
+  .confirm-popup { background: #E6F7ED; border: 1.5px solid #7DC99A; border-radius: 20px; padding: 2rem 1.5rem; width: 100%; max-width: 340px; text-align: center; animation: popIn 0.2s ease; }
+  @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .confirm-icon { width: 56px; height: 56px; background: #2D8A52; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; }
+  .confirm-icon svg { width: 28px; height: 28px; }
+  .confirm-title { font-size: 17px; font-weight: 700; color: #1A3D28; margin-bottom: 6px; }
+  .confirm-detail { font-size: 13px; color: #2D6B40; line-height: 1.5; margin-bottom: 1.5rem; }
+  .btn-confirm-close { width: 100%; padding: 0.8rem; border-radius: 10px; border: none; background: #2D8A52; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-confirm-close:active { background: #1F7A42; }
+
+  .empty { text-align: center; padding: 3rem 1.5rem; color: var(--text3); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .empty-text { font-size: 15px; }
+  .loader { text-align: center; padding: 3rem; color: var(--text3); font-size: 14px; }
+  .reset-bar { padding: 0.5rem 1.25rem; display: flex; justify-content: flex-end; }
+  .btn-reset { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; text-decoration: underline; padding: 4px; }
+
+  /* TRADE MARKETING — OPCIÓN A */
+  .tm-divider { height: 1px; background: #e8edf5; margin: 14px 0 12px; }
+  .tm-section { margin-top: 10px; }
+  .tm-block { border-radius: 10px; padding: 11px 13px; border-left: 4px solid; }
+  .tm-block-obj { background: #f5f8ff; border-color: #254899; }
+  .tm-block-exec { background: #f0fff5; border-color: #2D8A52; }
+  .tm-block-rev { background: #f8f5ff; border-color: #6d28d9; }
+  .tm-block-fotos { background: #f5f8ff; border-left: none; border: 2px dashed #7090c0; border-radius: 10px; }
+  .tm-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .tm-badge { font-size: 9px; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+  .tm-badge-plan { background: #dce6f8; color: #1d3a8f; }
+  .tm-badge-exec { background: #dcf5e8; color: #145c30; }
+  .tm-objetivo-label { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #1d3a8f; margin-bottom: 6px; }
+  .tm-objetivo-text { font-size: 13px; color: #1e3d80; font-style: italic; line-height: 1.5; }
+  .tm-checklist { margin-top: 10px; display: flex; flex-direction: column; gap: 0; }
+  .tm-check-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #e4ecf8; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .tm-check-item:last-child { border-bottom: none; }
+  .tm-check-box { width: 22px; height: 22px; border-radius: 5px; border: 2px solid #b0c4e8; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: #fff; }
+  .tm-check-box.checked { background: #254899; border-color: #254899; }
+  .tm-check-box.checked svg { display: block; }
+  .tm-check-box svg { display: none; width: 13px; height: 13px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+  .tm-check-label { font-size: 13px; color: #1a2c5b; font-weight: 500; flex: 1; }
+  .tm-check-label.done { color: #7090b8; text-decoration: line-through; }
+  .tm-visited-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .tm-visited-check { width: 24px; height: 24px; border-radius: 5px; border: 2px solid #b0d4c0; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; background: #fff; }
+  .tm-visited-check.checked { background: #2D8A52; border-color: #2D8A52; }
+  .tm-visited-label { font-size: 13px; color: #1a3325; font-weight: 500; }
+  .tm-visited-ts { font-size: 11px; color: #5a8a6a; margin-left: 5px; font-weight: 400; }
+  .tm-textarea-wrap { position: relative; }
+  .tm-textarea { width: 100%; border: 1.5px solid #c8d8f0; border-radius: 8px; padding: 10px 44px 10px 12px; font-size: 14px; resize: none; background: #fff; color: #1a2c5b; font-family: 'DM Sans', sans-serif; outline: none; min-height: 72px; line-height: 1.5; }
+  .tm-textarea:focus { border-color: #254899; }
+  .tm-textarea::placeholder { color: #9ab0cc; }
+  .tm-mic-btn { position: absolute; right: 8px; top: 8px; width: 30px; height: 30px; border-radius: 50%; background: #254899; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .tm-mic-btn:active { transform: scale(0.92); }
+  .tm-mic-btn.recording { background: #dc2626; animation: pulse-mic 1s infinite; }
+  @keyframes pulse-mic { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
+  .tm-mic-btn svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .tm-mic-status { font-size: 11px; color: #dc2626; font-weight: 600; margin-top: 4px; display: none; }
+  .tm-mic-status.active { display: block; }
+  .tm-photo-zone { border: 2px dashed #7090c0; border-radius: 10px; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; cursor: pointer; background: #f5f8ff; text-align: center; }
+  .tm-photo-zone:active { background: #e8eef8; }
+  .tm-photo-zone-icon svg { width: 38px; height: 38px; stroke: #254899; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+  .tm-photo-zone-text { font-size: 14px; color: #254899; font-weight: 700; }
+  .tm-photo-zone-sub { font-size: 11px; color: #5070a8; }
+  .tm-photo-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tm-thumb { width: 68px; height: 68px; border-radius: 9px; object-fit: cover; border: 1px solid #c5d4f0; cursor: pointer; }
+  .tm-thumb-add { width: 68px; height: 68px; border-radius: 9px; background: #e8f5e8; border: 1.5px dashed #4a9e4a; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .tm-revision-label { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #5b3ea8; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+  .tm-btn { width: 100%; padding: 13px; border-radius: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border: 1.5px solid; -webkit-tap-highlight-color: transparent; }
+  .tm-btn:active { opacity: .85; transform: scale(0.98); }
+  .tm-btn-maps { border-color: #c5d4f0; color: #1d3a8f; background: #f0f5ff; }
+  .tm-btn-cambio { border-color: #d8c5f0; color: #5b3ea8; background: #f8f5ff; }
+  .tm-btn-geo { border-color: #b8d8c0; color: #145c30; background: #f0fff5; }
+  .tm-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; flex-shrink: 0; }
+
+  /* MOBILE */
+  @media (max-width: 480px) {
+    body { padding-bottom: 3rem; }
+    .header { padding: 1rem 1rem 0.875rem; }
+    .app-name { font-size: 10px; }
+    select { font-size: 16px; padding: 0.7rem 0.75rem; }
+    .day-tab { padding: 7px 14px; font-size: 13px; min-height: 38px; }
+    .stats-bar { padding: 0.875rem 1rem 0.5rem; gap: 6px; }
+    .stat { padding: 0.5rem 0.5rem; }
+    .stat-num { font-size: 18px; }
+    .stat-label { font-size: 10px; }
+    .filter-bar { padding: 0.25rem 1rem 0.5rem; gap: 6px; }
+    .filter-chip { font-size: 12px; padding: 6px 10px; min-height: 36px; }
+    .list { padding: 0.5rem 0.75rem; gap: 10px; }
+    .card-main { padding: 1rem 0.875rem 1rem 1rem; }
+    .client-name { font-size: 15px; }
+    .client-subtext { font-size: 12px; }
+    .order-num { font-size: 14px; min-width: 24px; }
+    .btn-action { width: 40px; height: 40px; }
+    .btn-action svg { width: 17px; height: 17px; }
+    .card-detail { padding: 0 0.875rem 1.25rem 0.875rem; }
+    .detail-label { font-size: 11px; }
+    .detail-value { font-size: 14px; }
+    .btn-maps, .btn-solicitar, .btn-geo { font-size: 13px; padding: 12px; min-height: 48px; }
+    .visita-btn { width: 28px; height: 28px; }
+    .tm-check-item { padding: 11px 0; }
+    .tm-check-box { width: 26px; height: 26px; }
+    .tm-check-label { font-size: 14px; }
+    .tm-visited-check { width: 28px; height: 28px; }
+    .tm-visited-label { font-size: 14px; }
+    .tm-textarea { font-size: 15px; min-height: 80px; padding: 10px 50px 10px 13px; }
+    .tm-mic-btn { width: 34px; height: 34px; right: 9px; top: 9px; }
+    .tm-mic-btn svg { width: 16px; height: 16px; }
+    .tm-photo-zone { padding: 28px 16px; }
+    .tm-photo-zone-text { font-size: 15px; }
+    .tm-thumb, .tm-thumb-add { width: 76px; height: 76px; }
+    .tm-btn { font-size: 14px; padding: 15px; min-height: 52px; }
+    .modal { padding: 1.5rem 1rem 2.5rem; }
+    .modal-title { font-size: 16px; }
+    .tipo-btn { padding: 0.875rem 0.4rem; font-size: 11px; min-height: 72px; }
+    .tipo-btn .tipo-icon { font-size: 22px; }
+    .modal-field input, .modal-field select, .modal-field textarea { font-size: 16px; padding: 0.7rem 0.875rem; }
+    .btn-cancelar, .btn-enviar { font-size: 15px; padding: 0.875rem; min-height: 50px; }
+    .btn-confirm-close { font-size: 15px; min-height: 50px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <span class="app-name">Ruteo de visitas</span>
+    <div class="header-right">
+      <button class="btn-search" onclick="toggleSearch()" title="Buscar cliente">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="8.5" cy="8.5" r="5.5"/><path d="M15 15l-3-3"/>
+        </svg>
+      </button>
+      <span class="today-badge" id="today-label">—</span>
+    </div>
+  </div>
+  <select id="vendedor-select">
+    <option value="">— Seleccioná tu nombre —</option>
+  </select>
+  <div class="search-overlay" id="search-overlay">
+    <div class="search-input-wrap">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="8.5" cy="8.5" r="5.5"/><path d="M15 15l-3-3"/>
+      </svg>
+      <input class="search-input" id="search-input" type="text" placeholder="Buscar cliente..." oninput="onSearch()">
+      <button class="btn-search-clear" onclick="clearSearch()">✕</button>
+    </div>
+  </div>
+  <div class="days-strip" id="days-strip"></div>
+</div>
+
+<div id="app-content">
+  <div class="loader">Cargando planilla...</div>
+</div>
+
+<!-- MODAL SOLICITUD -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Solicitar cambio</div>
+    <div class="modal-cliente" id="modal-cliente-nombre"></div>
+    <div class="tipo-grid">
+      <button class="tipo-btn" data-tipo="orden" onclick="selectTipo(this)">
+        <span class="tipo-icon">📋</span>CAMBIAR<br>ORDEN
+      </button>
+      <button class="tipo-btn" data-tipo="dia" onclick="selectTipo(this)">
+        <span class="tipo-icon">📅</span>CAMBIAR<br>DÍA
+      </button>
+      <button class="tipo-btn" data-tipo="eliminar" onclick="selectTipo(this)">
+        <span class="tipo-icon">🗑️</span>ELIMINAR<br>DEL RUTEO
+      </button>
+    </div>
+    <div id="campo-orden" class="modal-field" style="display:none">
+      <label>Nuevo número de orden</label>
+      <input type="number" id="input-orden" min="1" placeholder="Ej: 5" oninput="validarEnvio()">
+    </div>
+    <div id="campo-dia" class="modal-field" style="display:none">
+      <label>Nuevo día de visita</label>
+      <select id="input-dia" onchange="validarEnvio()">
+        <option value="">— Seleccioná —</option>
+        <option>LUNES</option><option>MARTES</option><option>MIERCOLES</option>
+        <option>JUEVES</option><option>VIERNES</option>
+      </select>
+    </div>
+    <div id="campo-dia-orden" class="modal-field" style="display:none">
+      <label>Nuevo orden en ese día</label>
+      <input type="number" id="input-dia-orden" min="1" placeholder="Ej: 3" oninput="validarEnvio()">
+    </div>
+    <div id="campo-eliminar" class="modal-field" style="display:none">
+      <label>Motivo (opcional)</label>
+      <textarea id="input-motivo" placeholder="Ej: El cliente cerró el local..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-enviar" id="btn-enviar" disabled onclick="enviarSolicitud()">Enviar solicitud</button>
+    </div>
+  </div>
+</div>
+
+<!-- POP-UP CONFIRMACIÓN -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-popup">
+    <div class="confirm-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+        <path d="M5 14l6 6L23 7"/>
+      </svg>
+    </div>
+    <div class="confirm-title">¡Solicitud enviada!</div>
+    <div class="confirm-detail" id="confirm-detail"></div>
+    <button class="btn-confirm-close" onclick="cerrarConfirm()">Aceptar</button>
+  </div>
+</div>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRz7pc6dt5hMfSNJV48kQqcTIDTFDvevOO0TIM6oN6KA0HUG3igoG3zoSqWB_uJQMbdqpgc2c_M1azd/pub?gid=1071989663&single=true&output=csv';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyNwnkqjWtkwVFZQMtqGCmKIgofMC0VUor35pllpNogNzU4wDTOesxA3H57qkmwDg3n7A/exec';
+
+let allData = [];
+let selectedVendedor = '';
+let selectedDay = '';
+let searchQuery = '';
+let modalData = null;
+let tipoSeleccionado = null;
+const solicitudes = {};
+const DAYS_ORDER = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO','DOMINGO'];
+
+// ── SEMANA ACTUAL ─────────────────────────────────────────────────────────────
+// Devuelve un string "YYYY-Wnn" donde la semana empieza el lunes
+function currentWeekKey() {
+  var now = new Date();
+  // Ajustar al lunes de la semana actual
+  var day = now.getDay(); // 0=dom, 1=lun ... 6=sab
+  var diff = (day === 0) ? -6 : 1 - day; // días hasta el lunes
+  var monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  var year = monday.getFullYear();
+  // Número de semana ISO
+  var startOfYear = new Date(year, 0, 1);
+  var weekNum = Math.ceil(((monday - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+  return year + '-W' + String(weekNum).padStart(2, '0');
+}
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function storageKey(v, d) { return 'ruteo2_' + v + '_' + d + '_' + currentWeekKey(); }
+function todayStr() { return new Date().toISOString().slice(0,10); }
+
+// ── TRADE MARKETING STORAGE ───────────────────────────────────────────────────
+function tmKey(v, c) { return 'tm_' + v + '_' + c + '_' + currentWeekKey(); }
+function tmFotosKey(v, c) { return 'tm_fotos_' + v + '_' + c + '_' + currentWeekKey(); }
+function getTMData(v, c) {
+  try { return JSON.parse(localStorage.getItem(tmKey(v,c)) || '{}'); }
+  catch { return {}; }
+}
+function saveTMData(v, c, data) {
+  localStorage.setItem(tmKey(v,c), JSON.stringify(data));
+}
+function getTMFotos(v, c) {
+  try { return JSON.parse(localStorage.getItem(tmFotosKey(v,c)) || '[]'); }
+  catch { return []; }
+}
+function saveTMFotos(v, c, fotos) {
+  localStorage.setItem(tmFotosKey(v,c), JSON.stringify(fotos));
+}
+
+// ── MICRÓFONO (Web Speech API) ────────────────────────────────────────────────
+var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+var activeRecognition = null;
+
+function startMic(textarea, micBtn, statusEl) {
+  if (!SpeechRecognition) {
+    alert('Tu navegador no soporta reconocimiento de voz. Usá Chrome en Android.');
+    return;
+  }
+  if (activeRecognition) { activeRecognition.stop(); return; }
+  var rec = new SpeechRecognition();
+  rec.lang = 'es-AR';
+  rec.continuous = true;
+  rec.interimResults = true;
+  activeRecognition = rec;
+  micBtn.classList.add('recording');
+  statusEl.classList.add('active');
+  statusEl.textContent = '● Escuchando...';
+  var base = textarea.value;
+  rec.onresult = function(e) {
+    var interim = '', final = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    if (final) base += (base ? ' ' : '') + final.trim();
+    textarea.value = base + (interim ? ' ' + interim : '');
+  };
+  rec.onerror = function() { stopMic(micBtn, statusEl); };
+  rec.onend = function() { stopMic(micBtn, statusEl); };
+  rec.start();
+}
+
+function stopMic(micBtn, statusEl) {
+  if (activeRecognition) { try { activeRecognition.stop(); } catch(e){} activeRecognition = null; }
+  micBtn.classList.remove('recording');
+  statusEl.classList.remove('active');
+}
+
+// ── CHECKLIST DE OBJETIVOS ────────────────────────────────────────────────────
+var TM_CHECKLIST = [
+  'Verificar exhibición',
+  'Relevar stock',
+  'Colocar material POP',
+  'Negociar espacio',
+  'Hablar con encargado/a',
+  'Revisar heladera / equipamiento',
+  'Proponer nueva línea de producto'
+];
+function getStateMap(v, d) {
+  try { return JSON.parse(localStorage.getItem(storageKey(v,d)) || '{}'); }
+  catch { return {}; }
+}
+function saveStateMap(v, d, map) {
+  localStorage.setItem(storageKey(v,d), JSON.stringify(map));
+}
+function setClientState(codigo, state) {
+  const map = getStateMap(selectedVendedor, selectedDay);
+  if (map[codigo] === state) delete map[codigo];
+  else map[codigo] = state;
+  saveStateMap(selectedVendedor, selectedDay, map);
+  if (searchQuery) renderSearchResults();
+  else render();
+}
+
+// ── HISTORIAL DE VISITAS ──────────────────────────────────────────────────────
+
+function historialKey(vendedor) { return 'historial_' + vendedor; }
+
+function getHistorial(vendedor) {
+  try { return JSON.parse(localStorage.getItem(historialKey(vendedor)) || '{}'); }
+  catch { return {}; }
+}
+
+function saveHistorial(vendedor, hist) {
+  localStorage.setItem(historialKey(vendedor), JSON.stringify(hist));
+}
+
+// Registra el estado final del día para todos los clientes planificados
+function cerrarJornada(vendedor, dia, fecha) {
+  var hist = getHistorial(vendedor);
+  var stateMap = getStateMap(vendedor, dia);
+  var clientes = allData.filter(function(r) {
+    return r['VENDEDOR'] === vendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === dia;
+  });
+  clientes.forEach(function(c) {
+    var codigo = c['CODIGO CLIENTE'];
+    var estado = stateMap[codigo] || 'none';
+    if (!hist[codigo]) hist[codigo] = [];
+    // Evitar duplicados del mismo día
+    var yaRegistrado = hist[codigo].some(function(e) { return e.fecha === fecha; });
+    if (!yaRegistrado) {
+      hist[codigo].push({ fecha: fecha, estado: estado });
+      // Mantener solo las últimas 20 entradas por cliente
+      if (hist[codigo].length > 20) hist[codigo] = hist[codigo].slice(-20);
+    }
+  });
+  saveHistorial(vendedor, hist);
+}
+
+// Devuelve las últimas N visitas de un cliente
+function getUltimasVisitas(vendedor, codigo, n) {
+  var hist = getHistorial(vendedor);
+  var entradas = hist[codigo] || [];
+  return entradas.slice(-n);
+}
+
+// Cierre automático: se ejecuta al cargar la app y verifica si hay jornadas pasadas sin cerrar
+function verificarCierresPendientes() {
+  if (!selectedVendedor || !allData.length) return;
+  var hoy = todayStr();
+  var dias = DAYS_ORDER.filter(function(d) {
+    return allData.some(function(r) {
+      return r['VENDEDOR'] === selectedVendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === d;
+    });
+  });
+  // Revisar los últimos 7 días (solo días anteriores, nunca hoy)
+  for (var i = 1; i <= 7; i++) {
+    var fecha = new Date();
+    fecha.setDate(fecha.getDate() - i);
+    var fechaStr = fecha.toISOString().slice(0, 10);
+    if (fechaStr >= hoy) continue; // nunca cerrar el día actual
+    var diaNombre = ['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][fecha.getDay()];
+    if (dias.indexOf(diaNombre) === -1) continue;
+    // Verificar si ya se cerró ese día
+    var hist = getHistorial(selectedVendedor);
+    var clientes = allData.filter(function(r) {
+      return r['VENDEDOR'] === selectedVendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === diaNombre;
+    });
+    if (!clientes.length) continue;
+    var primero = clientes[0]['CODIGO CLIENTE'];
+    var yaHayCierre = hist[primero] && hist[primero].some(function(e) { return e.fecha === fechaStr; });
+    if (!yaHayCierre) {
+      cerrarJornada(selectedVendedor, diaNombre, fechaStr);
+    }
+  }
+}
+
+// ── CSV ────────────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g,''); });
+  return lines.slice(1).map(function(line) {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach(function(h, i) { obj[h] = vals[i] || ''; });
+    return obj;
+  }).filter(function(r) { return r['NOMBRE COMERCIAL']; });
+}
+
+function mapsUrl(address, city) {
+  return 'https://maps.google.com/?q=' + encodeURIComponent(address + ', ' + city + ', Argentina');
+}
+function todayDayName() {
+  return ['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][new Date().getDay()];
+}
+function canalClass(canal) {
+  if (!canal) return 'presencial';
+  const c = canal.toLowerCase();
+  if (c.includes('ecom') || c.includes('auto')) return 'ecom';
+  if (c.includes('telef')) return 'telefonico';
+  return 'presencial';
+}
+function tipoLabel(tipo) {
+  if (tipo === 'orden') return '📋 Cambio de orden';
+  if (tipo === 'dia') return '📅 Cambio de día';
+  return '🗑️ Eliminar del ruteo';
+}
+
+// ── BÚSQUEDA ───────────────────────────────────────────────────────────────────
+function toggleSearch() {
+  const overlay = document.getElementById('search-overlay');
+  const input = document.getElementById('search-input');
+  const isActive = overlay.classList.toggle('active');
+  if (isActive) { setTimeout(function() { input.focus(); }, 100); }
+  else { searchQuery = ''; input.value = ''; render(); }
+}
+function clearSearch() {
+  searchQuery = '';
+  const input = document.getElementById('search-input');
+  if (input) input.value = '';
+  render();
+}
+function onSearch() {
+  searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
+  if (searchQuery) renderSearchResults();
+  else render();
+}
+function renderSearchResults() {
+  if (!selectedVendedor) return;
+  const vendRows = allData.filter(function(r) { return r['VENDEDOR'] === selectedVendedor; });
+  const matches = vendRows.filter(function(r) {
+    const q = searchQuery;
+    return r['NOMBRE COMERCIAL'].toLowerCase().includes(q) ||
+           r['DIRECCION'].toLowerCase().includes(q) ||
+           r['LOCALIDAD'].toLowerCase().includes(q);
+  });
+  const content = document.getElementById('app-content');
+  content.innerHTML = '';
+  if (!matches.length) {
+    content.innerHTML = '<div class="empty"><div class="empty-text">Sin resultados para esa búsqueda.</div></div>';
+    return;
+  }
+  const label = document.createElement('div');
+  label.className = 'search-results-label';
+  label.textContent = matches.length + ' resultado' + (matches.length !== 1 ? 's' : '');
+  content.appendChild(label);
+  const stateMap = getStateMap(selectedVendedor, selectedDay);
+  const list = document.createElement('div');
+  list.className = 'list';
+  matches.forEach(function(c) { list.appendChild(buildCard(c, stateMap, true)); });
+  content.appendChild(list);
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────────────
+function abrirModal(codigo) {
+  const row = allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo && r['VENDEDOR'] === selectedVendedor; })
+           || allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo; });
+  if (!row) return;
+  modalData = row;
+  tipoSeleccionado = null;
+  document.getElementById('modal-cliente-nombre').textContent = row['NOMBRE COMERCIAL'] + ' · ' + row['LOCALIDAD'];
+  document.querySelectorAll('.tipo-btn').forEach(function(b) { b.classList.remove('selected'); });
+  document.getElementById('campo-orden').style.display = 'none';
+  document.getElementById('campo-dia').style.display = 'none';
+  document.getElementById('campo-eliminar').style.display = 'none';
+  document.getElementById('input-orden').value = '';
+  document.getElementById('input-dia').value = '';
+  document.getElementById('input-motivo').value = '';
+  document.getElementById('input-dia-orden').value = '';
+  document.getElementById('campo-dia-orden').style.display = 'none';
+  document.getElementById('btn-enviar').disabled = true;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function cerrarModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalData = null;
+  tipoSeleccionado = null;
+}
+function selectTipo(btn) {
+  document.querySelectorAll('.tipo-btn').forEach(function(b) { b.classList.remove('selected'); });
+  btn.classList.add('selected');
+  tipoSeleccionado = btn.dataset.tipo;
+  document.getElementById('campo-orden').style.display = tipoSeleccionado === 'orden' ? 'block' : 'none';
+  document.getElementById('campo-dia').style.display = tipoSeleccionado === 'dia' ? 'block' : 'none';
+  document.getElementById('campo-dia-orden').style.display = tipoSeleccionado === 'dia' ? 'block' : 'none';
+  document.getElementById('campo-eliminar').style.display = tipoSeleccionado === 'eliminar' ? 'block' : 'none';
+  validarEnvio();
+}
+function validarEnvio() {
+  let ok = false;
+  if (tipoSeleccionado === 'orden') ok = parseInt(document.getElementById('input-orden').value) > 0;
+  else if (tipoSeleccionado === 'dia') ok = document.getElementById('input-dia').value !== '' && parseInt(document.getElementById('input-dia-orden').value) > 0;
+  else if (tipoSeleccionado === 'eliminar') ok = true;
+  document.getElementById('btn-enviar').disabled = !ok;
+}
+function solKey() { return 'sol_' + selectedVendedor + '_' + todayStr(); }
+function getSolicitudes() {
+  try { return JSON.parse(localStorage.getItem(solKey()) || '{}'); }
+  catch { return {}; }
+}
+function saveSolicitud(codigo, data) {
+  const map = getSolicitudes();
+  map[codigo] = data;
+  localStorage.setItem(solKey(), JSON.stringify(map));
+}
+
+function enviarSolicitud() {
+  if (!modalData) return;
+  const codigo = modalData['CODIGO CLIENTE'];
+  let detalle = '';
+  if (tipoSeleccionado === 'orden') detalle = 'Nuevo orden solicitado: ' + document.getElementById('input-orden').value;
+  else if (tipoSeleccionado === 'dia') detalle = 'Nuevo día solicitado: ' + document.getElementById('input-dia').value + ' | Nuevo orden: ' + document.getElementById('input-dia-orden').value;
+  else {
+    const motivo = document.getElementById('input-motivo').value.trim();
+    detalle = motivo ? 'Motivo: ' + motivo : 'Sin motivo especificado';
+  }
+
+  const tipo = tipoSeleccionado === 'orden' ? 'Cambio de orden' : tipoSeleccionado === 'dia' ? 'Cambio de día' : 'Eliminar del ruteo';
+
+  const payload = {
+    vendedor:  selectedVendedor,
+    codigo:    codigo,
+    cliente:   modalData['NOMBRE COMERCIAL'],
+    localidad: modalData['LOCALIDAD'],
+    diaActual: modalData['DIA CARGA DE PEDIDO'],
+    tipo:      tipo,
+    detalle:   detalle
+  };
+
+  // 1. Guardar en localStorage para que el chip persista
+  saveSolicitud(codigo, { tipo: tipoSeleccionado, detalle: detalle });
+
+  // 2. Preparar texto del pop-up ANTES de cerrar el modal
+  const nombreCliente = modalData['NOMBRE COMERCIAL'];
+  const tipoStr = tipoSeleccionado;
+
+  // 3. Cerrar modal y re-renderizar
+  cerrarModal();
+  if (searchQuery) renderSearchResults();
+  else render();
+
+  // 4. Mostrar pop-up DESPUÉS del render
+  document.getElementById('confirm-detail').innerHTML =
+    '<strong>' + nombreCliente + '</strong><br>' +
+    tipoLabel(tipoStr) + '<br>' +
+    '<span style="color:#3D8A56">' + detalle + '</span>';
+  document.getElementById('confirm-overlay').classList.add('open');
+
+  // 5. Enviar a Google Sheets
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(function(err) { console.warn('Error al enviar solicitud:', err); });
+}
+function cerrarConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+}
+
+// ── TARJETA ────────────────────────────────────────────────────────────────────
+function buildCard(c, stateMap, isSearch) {
+  const codigo = c['CODIGO CLIENTE'];
+  const state = stateMap[codigo];
+  const cc = canalClass(c['Canal actual (Presencial / Autogestión)']);
+  const stateClass = state === 'bought' ? ' bought' : state === 'notbought' ? ' notbought' : '';
+  const checkStroke = state === 'bought' ? '#fff' : '#9E9B97';
+  const xStroke = state === 'notbought' ? '#fff' : '#9E9B97';
+  const dia = (c['DIA CARGA DE PEDIDO'] || '');
+  const diaLabel = dia.charAt(0) + dia.slice(1).toLowerCase();
+  const sol = getSolicitudes()[codigo];
+
+  const card = document.createElement('div');
+  card.className = 'client-card ' + cc + stateClass;
+  card.id = (isSearch ? 'sc-' : 'card-') + codigo;
+  card.dataset.canal = cc;
+
+  const btnCheck = document.createElement('button');
+  btnCheck.className = 'btn-action btn-check';
+  btnCheck.title = 'Compró';
+  btnCheck.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="' + checkStroke + '" stroke-width="2" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>';
+  btnCheck.addEventListener('click', function(e) { e.stopPropagation(); setClientState(codigo, 'bought'); });
+
+  const btnX = document.createElement('button');
+  btnX.className = 'btn-action btn-x';
+  btnX.title = 'No compró';
+  btnX.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="' + xStroke + '" stroke-width="2" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
+  btnX.addEventListener('click', function(e) { e.stopPropagation(); setClientState(codigo, 'notbought'); });
+
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+  actions.appendChild(btnCheck);
+  actions.appendChild(btnX);
+
+  const name = document.createElement('div');
+  name.className = 'client-name';
+  const tieneCoords = c['Latitud'] && c['Longitud'] && String(c['Latitud']).trim() !== '' && String(c['Longitud']).trim() !== '';
+  name.textContent = c['NOMBRE COMERCIAL'] + (tieneCoords ? ' 📍' : '');
+
+  const chip = document.createElement('div');
+  chip.className = 'sol-chip' + (sol ? ' visible' : '');
+  if (sol) {
+    chip.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>' + tipoLabel(sol.tipo);
+  }
+
+  const info = document.createElement('div');
+  info.className = 'client-info';
+  info.appendChild(name);
+  info.appendChild(chip);
+
+  if (isSearch) {
+    const sub = document.createElement('div');
+    sub.className = 'client-subtext';
+    sub.textContent = diaLabel + ' · ' + c['LOCALIDAD'];
+    info.appendChild(sub);
+  }
+
+  const main = document.createElement('div');
+  main.className = 'card-main';
+  const num = document.createElement('div');
+  num.className = 'order-num';
+  num.textContent = c['ORDEN'];
+  main.appendChild(num);
+  main.appendChild(info);
+  main.appendChild(actions);
+  main.addEventListener('click', function() { card.classList.toggle('expanded'); });
+
+  const detail = document.createElement('div');
+  detail.className = 'card-detail';
+
+  const divider = document.createElement('div');
+  divider.className = 'detail-divider';
+  detail.appendChild(divider);
+
+  // Contenedor de dos columnas
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+
+  // Columna izquierda: datos
+  const dataCol = document.createElement('div');
+  dataCol.className = 'detail-data';
+  dataCol.innerHTML =
+    '<div class="detail-row"><div class="detail-label">Dirección</div><div class="detail-value">' + c['DIRECCION'] + '</div></div>' +
+    '<div class="detail-row"><div class="detail-label">Localidad</div><div class="detail-value">' + c['LOCALIDAD'] + '</div></div>' +
+    (isSearch ? '<div class="detail-row"><div class="detail-label">Día</div><div class="detail-value">' + diaLabel + '</div></div>' : '') +
+    '<div class="detail-row"><div class="detail-label">Código cliente</div><div class="detail-value">' + codigo + '</div></div>';
+
+  body.appendChild(dataCol);
+  detail.appendChild(body);
+
+  // Últimas 4 visitas — columna derecha del body
+  const ultimasVisitas = getUltimasVisitas(selectedVendedor, codigo, 4);
+  const visitasSection = document.createElement('div');
+  visitasSection.className = 'visitas-section';
+  const visitasLabel = document.createElement('div');
+  visitasLabel.className = 'visitas-label';
+  visitasLabel.textContent = 'Últimas 4 visitas';
+  visitasSection.appendChild(visitasLabel);
+  const visitasRow = document.createElement('div');
+  visitasRow.className = 'visitas-row';
+
+  // Incluir el estado de hoy en tiempo real (sin esperar al cierre)
+  var todayStateMap = getStateMap(selectedVendedor, selectedDay);
+  var estadoHoy = todayStateMap[codigo] || 'none';
+  var entradaHoy = { fecha: todayStr(), estado: estadoHoy };
+
+  // Combinar historial pasado + entrada de hoy
+  var todasVisitas = ultimasVisitas.filter(function(v) { return v.fecha !== todayStr(); });
+  todasVisitas.push(entradaHoy);
+  todasVisitas = todasVisitas.slice(-4);
+
+  var slots = [{fecha:'',estado:'none'},{fecha:'',estado:'none'},{fecha:'',estado:'none'},{fecha:'',estado:'none'}];
+  for (var vi = 0; vi < todasVisitas.length; vi++) {
+    slots[4 - todasVisitas.length + vi] = todasVisitas[vi];
+  }
+
+  slots.forEach(function(v) {
+    var item = document.createElement('div');
+    item.className = 'visita-item';
+    var btn = document.createElement('div');
+    btn.className = 'visita-btn ' + v.estado;
+    if (v.estado === 'bought') {
+      btn.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>';
+    } else if (v.estado === 'notbought') {
+      btn.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>';
+    } else {
+      btn.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h6"/></svg>';
+    }
+    item.appendChild(btn);
+    visitasRow.appendChild(item);
+  });
+
+  visitasSection.appendChild(visitasRow);
+  body.appendChild(visitasSection);
+
+  // Botones de acción originales removidos — reemplazados por los botones TM al final
+  const geoGuardada = getGeoLocal(codigo);
+
+  // Chip de estado geo
+  const geoChip = document.createElement('div');
+  if (geoGuardada) {
+    geoChip.className = 'geo-chip pending';
+    geoChip.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3.5v2.5l1.5 1"/></svg> Ubicación pendiente de sincronizar';
+  } else if (tieneCoords) {
+    geoChip.className = 'geo-chip ok';
+    geoChip.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 6l2.5 2.5L10 3.5"/></svg> Ubicación registrada';
+  }
+  if (geoGuardada) detail.appendChild(geoChip);
+
+  // ── TRADE MARKETING ────────────────────────────────────────────────────────
+  var tmData = getTMData(selectedVendedor, codigo);
+  var tmDiv = document.createElement('div');
+  tmDiv.className = 'tm-divider';
+  detail.appendChild(tmDiv);
+
+  // 1. OBJETIVO (solo lectura + checklist)
+  var secObj = document.createElement('div');
+  secObj.className = 'tm-section';
+  var objTitle = document.createElement('div');
+  objTitle.className = 'tm-section-title';
+  objTitle.style.color = '#1d3a8f';
+  objTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1d3a8f" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Objetivo <span class="tm-badge tm-badge-plan">Definido previamente</span>';
+  var objBlock = document.createElement('div');
+  objBlock.className = 'tm-block tm-block-obj';
+  var objLbl = document.createElement('div');
+  objLbl.className = 'tm-objetivo-label';
+  objLbl.textContent = 'Objetivo de la visita';
+  var objTxt = document.createElement('div');
+  objTxt.className = 'tm-objetivo-text';
+  objTxt.textContent = c['OBJETIVO'] || '—';
+  var checklistDiv = document.createElement('div');
+  checklistDiv.className = 'tm-checklist';
+  var savedChecks = tmData.checklist || [];
+  TM_CHECKLIST.forEach(function(item, idx) {
+    var row = document.createElement('div');
+    row.className = 'tm-check-item';
+    var checked = savedChecks[idx] || false;
+    var box = document.createElement('div');
+    box.className = 'tm-check-box' + (checked ? ' checked' : '');
+    box.innerHTML = '<svg viewBox="0 0 14 14"><path d="M2.5 7l3 3 6-6"/></svg>';
+    var lbl = document.createElement('span');
+    lbl.className = 'tm-check-label' + (checked ? ' done' : '');
+    lbl.textContent = item;
+    row.appendChild(box); row.appendChild(lbl);
+    row.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var d = getTMData(selectedVendedor, codigo);
+      if (!d.checklist) d.checklist = [];
+      d.checklist[idx] = !d.checklist[idx];
+      saveTMData(selectedVendedor, codigo, d);
+      box.classList.toggle('checked', d.checklist[idx]);
+      lbl.classList.toggle('done', d.checklist[idx]);
+    });
+    checklistDiv.appendChild(row);
+  });
+  objBlock.appendChild(objLbl); objBlock.appendChild(objTxt); objBlock.appendChild(checklistDiv);
+  secObj.appendChild(objTitle); secObj.appendChild(objBlock);
+  detail.appendChild(secObj);
+
+  // 2. EJECUCIÓN EN PUNTO DE VENTA
+  var secExec = document.createElement('div');
+  secExec.className = 'tm-section'; secExec.style.marginTop = '10px';
+  var execTitle = document.createElement('div');
+  execTitle.className = 'tm-section-title'; execTitle.style.color = '#145c30';
+  execTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#145c30" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Ejecución en punto de venta <span class="tm-badge tm-badge-exec">Quien ejecuta</span>';
+  var execBlock = document.createElement('div');
+  execBlock.className = 'tm-block tm-block-exec';
+  var visitada = tmData.visitada || false, visitadaTs = tmData.visitadaTs || '';
+  var vRow = document.createElement('div'); vRow.className = 'tm-visited-row';
+  var vChk = document.createElement('div');
+  vChk.className = 'tm-visited-check' + (visitada ? ' checked' : '');
+  vChk.innerHTML = visitada ? '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>' : '';
+  var vLbl = document.createElement('span'); vLbl.className = 'tm-visited-label';
+  vLbl.innerHTML = 'Visita realizada' + (visitadaTs ? '<span class="tm-visited-ts">· ' + visitadaTs + '</span>' : '');
+  vChk.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var d = getTMData(selectedVendedor, codigo);
+    d.visitada = !d.visitada;
+    d.visitadaTs = d.visitada ? new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    saveTMData(selectedVendedor, codigo, d);
+    vChk.classList.toggle('checked', d.visitada);
+    vChk.innerHTML = d.visitada ? '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>' : '';
+    vLbl.innerHTML = 'Visita realizada' + (d.visitadaTs ? '<span class="tm-visited-ts">· ' + d.visitadaTs + '</span>' : '');
+  });
+  vRow.appendChild(vChk); vRow.appendChild(vLbl);
+  var comentWrap = document.createElement('div'); comentWrap.className = 'tm-textarea-wrap'; comentWrap.style.marginTop = '10px';
+  var comentTA = document.createElement('textarea'); comentTA.className = 'tm-textarea'; comentTA.rows = 3;
+  comentTA.placeholder = 'Comentario de la visita... o dictá con el micrófono';
+  comentTA.value = tmData.comentario || '';
+  comentTA.addEventListener('click', function(e) { e.stopPropagation(); });
+  comentTA.addEventListener('blur', function() { var d = getTMData(selectedVendedor, codigo); d.comentario = comentTA.value; saveTMData(selectedVendedor, codigo, d); });
+  var micBtn = document.createElement('button'); micBtn.className = 'tm-mic-btn'; micBtn.title = 'Dictá tu comentario';
+  micBtn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/></svg>';
+  var micStatus = document.createElement('div'); micStatus.className = 'tm-mic-status';
+  micBtn.addEventListener('click', function(e) { e.stopPropagation(); startMic(comentTA, micBtn, micStatus); });
+  comentWrap.appendChild(comentTA); comentWrap.appendChild(micBtn);
+  execBlock.appendChild(vRow); execBlock.appendChild(comentWrap); execBlock.appendChild(micStatus);
+  secExec.appendChild(execTitle); secExec.appendChild(execBlock);
+  detail.appendChild(secExec);
+
+  // 3. FOTOS
+  var secFotos = document.createElement('div'); secFotos.className = 'tm-section'; secFotos.style.marginTop = '10px';
+  var fotosTitle = document.createElement('div'); fotosTitle.className = 'tm-section-title'; fotosTitle.style.color = '#1d3a8f';
+  fotosTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1d3a8f" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Fotos del punto de venta';
+  var fotoInput = document.createElement('input'); fotoInput.type = 'file'; fotoInput.accept = 'image/*'; fotoInput.multiple = true; fotoInput.style.display = 'none';
+  var fotoZone = document.createElement('div'); fotoZone.className = 'tm-photo-zone';
+  fotoZone.innerHTML = '<div class="tm-photo-zone-icon"><svg viewBox="0 0 24 24"><polyline points="16,16 12,12 8,16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div><div class="tm-photo-zone-text">Subir fotos del punto de venta</div><div class="tm-photo-zone-sub">Góndola · Exhibición · Material POP · Heladeras</div>';
+  fotoZone.addEventListener('click', function(e) { e.stopPropagation(); fotoInput.click(); });
+  var thumbsDiv = document.createElement('div'); thumbsDiv.className = 'tm-photo-thumbs';
+  function buildThumbs() {
+    thumbsDiv.innerHTML = '';
+    var fotos = getTMFotos(selectedVendedor, codigo);
+    fotos.forEach(function(src, idx) {
+      var img = document.createElement('img'); img.className = 'tm-thumb'; img.src = src; img.title = 'Tocar para eliminar';
+      img.addEventListener('click', function(e) { e.stopPropagation(); if (confirm('¿Eliminar esta foto?')) { var f = getTMFotos(selectedVendedor, codigo); f.splice(idx,1); saveTMFotos(selectedVendedor, codigo, f); buildThumbs(); } });
+      thumbsDiv.appendChild(img);
+    });
+    if (fotos.length < 5) {
+      var ab = document.createElement('div'); ab.className = 'tm-thumb-add';
+      ab.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4a9e4a" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+      ab.addEventListener('click', function(e) { e.stopPropagation(); fotoInput.click(); }); thumbsDiv.appendChild(ab);
+    }
+  }
+  buildThumbs();
+  fotoInput.addEventListener('change', function(e) {
+    e.stopPropagation();
+    var files = Array.from(e.target.files), remaining = 5 - getTMFotos(selectedVendedor, codigo).length, done = 0;
+    files.slice(0, remaining).forEach(function(file) {
+      var reader = new FileReader();
+      reader.onload = function(ev) { var f = getTMFotos(selectedVendedor, codigo); if (f.length < 5) { f.push(ev.target.result); saveTMFotos(selectedVendedor, codigo, f); } done++; if (done === Math.min(files.length, remaining)) buildThumbs(); };
+      reader.readAsDataURL(file);
+    }); fotoInput.value = '';
+  });
+  secFotos.appendChild(fotosTitle); secFotos.appendChild(fotoInput); secFotos.appendChild(fotoZone); secFotos.appendChild(thumbsDiv);
+  detail.appendChild(secFotos);
+
+  // 4. REVISIÓN CON EL VENDEDOR
+  var secRev = document.createElement('div'); secRev.className = 'tm-section'; secRev.style.marginTop = '10px';
+  var revTitle = document.createElement('div'); revTitle.className = 'tm-section-title'; revTitle.style.color = '#5b3ea8';
+  revTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b3ea8" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Revisión con el vendedor';
+  var revBlock = document.createElement('div'); revBlock.className = 'tm-block tm-block-rev';
+  var revWrap = document.createElement('div'); revWrap.className = 'tm-textarea-wrap';
+  var revTA = document.createElement('textarea'); revTA.className = 'tm-textarea'; revTA.rows = 3; revTA.style.background = '#f8f5ff';
+  revTA.placeholder = 'Acuerdos, pendientes, próximos pasos... o dictá con el micrófono';
+  revTA.value = tmData.revision || '';
+  revTA.addEventListener('click', function(e) { e.stopPropagation(); });
+  revTA.addEventListener('blur', function() { var d = getTMData(selectedVendedor, codigo); d.revision = revTA.value; saveTMData(selectedVendedor, codigo, d); });
+  var revMicBtn = document.createElement('button'); revMicBtn.className = 'tm-mic-btn'; revMicBtn.title = 'Dictá la revisión';
+  revMicBtn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/></svg>';
+  var revMicStatus = document.createElement('div'); revMicStatus.className = 'tm-mic-status';
+  revMicBtn.addEventListener('click', function(e) { e.stopPropagation(); startMic(revTA, revMicBtn, revMicStatus); });
+  revWrap.appendChild(revTA); revWrap.appendChild(revMicBtn); revBlock.appendChild(revWrap); revBlock.appendChild(revMicStatus);
+  secRev.appendChild(revTitle); secRev.appendChild(revBlock);
+  detail.appendChild(secRev);
+
+  // 5. BOTONES: Maps → Solicitar cambio → Actualizar ubicación
+  var botonesDiv = document.createElement('div');
+  botonesDiv.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:14px';
+  var cLat = c['Latitud'] || '', cLng = c['Longitud'] || '';
+  var tmMapsHref = (cLat && cLng) ? 'https://maps.google.com/?q=' + cLat + ',' + cLng : 'https://maps.google.com/?q=' + encodeURIComponent((c['DIRECCION']||'') + ' ' + (c['LOCALIDAD']||''));
+  var btnMaps = document.createElement('a'); btnMaps.href = tmMapsHref; btnMaps.target = '_blank';
+  btnMaps.className = 'tm-btn tm-btn-maps'; btnMaps.style.textDecoration = 'none';
+  btnMaps.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Abrir en Maps';
+  btnMaps.addEventListener('click', function(e) { e.stopPropagation(); });
+  var btnCambio = document.createElement('div'); btnCambio.className = 'tm-btn tm-btn-cambio';
+  btnCambio.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> Solicitar cambio en el ruteo';
+  btnCambio.addEventListener('click', function(e) { e.stopPropagation(); abrirModal(c); });
+  var btnUbicacion = document.createElement('div'); btnUbicacion.className = 'tm-btn tm-btn-geo';
+  btnUbicacion.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Actualizar ubicación';
+  btnUbicacion.addEventListener('click', function(e) { e.stopPropagation(); capturarGeo(codigo, c['NOMBRE COMERCIAL'], btnUbicacion); });
+  botonesDiv.appendChild(btnMaps); botonesDiv.appendChild(btnCambio); botonesDiv.appendChild(btnUbicacion);
+  detail.appendChild(botonesDiv);
+  // ── FIN TRADE MARKETING ────────────────────────────────────────────────────
+
+  card.appendChild(main);
+  card.appendChild(detail);
+  return card;
+}
+
+// ── GEOLOCALIZACIÓN ───────────────────────────────────────────────────────────
+
+function geoKey() { return 'geo_pendiente_' + selectedVendedor; }
+
+function getGeoLocal(codigo) {
+  try {
+    var map = JSON.parse(localStorage.getItem(geoKey()) || '{}');
+    return map[codigo] || null;
+  } catch(e) { return null; }
+}
+
+function saveGeoLocal(codigo, lat, lon) {
+  try {
+    var map = JSON.parse(localStorage.getItem(geoKey()) || '{}');
+    map[codigo] = { lat: lat, lon: lon, ts: Date.now() };
+    localStorage.setItem(geoKey(), JSON.stringify(map));
+  } catch(e) {}
+}
+
+function removeGeoLocal(codigo) {
+  try {
+    var map = JSON.parse(localStorage.getItem(geoKey()) || '{}');
+    delete map[codigo];
+    localStorage.setItem(geoKey(), JSON.stringify(map));
+  } catch(e) {}
+}
+
+function capturarGeo(codigo, nombre, btnEl) {
+  if (!navigator.geolocation) {
+    alert('Tu dispositivo no soporta geolocalización.');
+    return;
+  }
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg> Obteniendo ubicación...';
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude.toFixed(6);
+      var lon = pos.coords.longitude.toFixed(6);
+      enviarGeo(codigo, nombre, lat, lon, btnEl);
+    },
+    function(err) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg> Error al obtener ubicación. Reintentar';
+      alert('No se pudo obtener la ubicación: ' + err.message);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+function enviarGeo(codigo, nombre, lat, lon, btnEl) {
+  var payload = {
+    accion:    'geolocalizar',
+    codigo:    codigo,
+    cliente:   nombre,
+    vendedor:  selectedVendedor,
+    lat:       lat,
+    lon:       lon
+  };
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function() {
+    // Con no-cors no podemos leer la respuesta, asumimos éxito
+    removeGeoLocal(codigo);
+    mostrarGeoConfirm(nombre, lat, lon);
+    if (searchQuery) renderSearchResults();
+    else render();
+  }).catch(function() {
+    // Sin señal: guardar localmente
+    saveGeoLocal(codigo, lat, lon);
+    mostrarGeoConfirm(nombre, lat, lon, true);
+    if (searchQuery) renderSearchResults();
+    else render();
+  });
+}
+
+function mostrarGeoConfirm(nombre, lat, lon, pendiente) {
+  var detail = document.getElementById('confirm-detail');
+  var titulo = document.getElementById('confirm-title') || document.querySelector('.confirm-title');
+  if (titulo) titulo.textContent = pendiente ? '📍 Guardado sin conexión' : '📍 Ubicación registrada';
+  detail.innerHTML =
+    '<strong>' + nombre + '</strong><br>' +
+    'Lat: ' + lat + ' | Lon: ' + lon + '<br>' +
+    (pendiente ? '<span style="color:#C2410C">Se sincronizará cuando haya conexión.</span>'
+               : '<span style="color:#0F766E">Datos enviados al sistema.</span>');
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function sincronizarGeoPendientes() {
+  try {
+    var map = JSON.parse(localStorage.getItem(geoKey()) || '{}');
+    var codigos = Object.keys(map);
+    if (!codigos.length) return;
+
+    codigos.forEach(function(codigo) {
+      var geo = map[codigo];
+      var row = allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo; });
+      var nombre = row ? row['NOMBRE COMERCIAL'] : codigo;
+      var payload = {
+        accion:   'geolocalizar',
+        codigo:   codigo,
+        cliente:  nombre,
+        vendedor: selectedVendedor,
+        lat:      geo.lat,
+        lon:      geo.lon
+      };
+      var delay = Math.floor(Math.random() * 25000) + 5000; // 5-30 seg aleatorio
+      setTimeout(function() {
+        fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function() {
+          removeGeoLocal(codigo);
+          console.log('Geo sincronizada: ' + codigo);
+        }).catch(function() {
+          console.log('Reintento fallido para: ' + codigo);
+        });
+      }, delay);
+    });
+  } catch(e) {}
+}
+
+// Escuchar reconexión y sincronizar pendientes automáticamente
+window.addEventListener('online', function() {
+  setTimeout(sincronizarGeoPendientes, 2000);
+});
+
+// ── FILTRO ─────────────────────────────────────────────────────────────────────
+function applyFilter() {
+  const showP = document.getElementById('filter-presencial')?.checked ?? true;
+  const showE = document.getElementById('filter-ecom')?.checked ?? true;
+  const showT = document.getElementById('filter-telefonico')?.checked ?? true;
+  document.querySelectorAll('.client-card').forEach(function(card) {
+    const b = card.dataset.canal;
+    let show = true;
+    if (b === 'presencial') show = showP;
+    else if (b === 'ecom') show = showE;
+    else if (b === 'telefonico') show = showT;
+    card.style.display = show ? '' : 'none';
+  });
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────────
+function renderDayTabs(days) {
+  const strip = document.getElementById('days-strip');
+  strip.innerHTML = '';
+  days.forEach(function(day) {
+    const btn = document.createElement('button');
+    btn.className = 'day-tab' + (day === selectedDay ? ' active' : '');
+    btn.textContent = day.charAt(0) + day.slice(1).toLowerCase();
+    btn.onclick = function() { selectedDay = day; render(); };
+    strip.appendChild(btn);
+  });
+}
+
+function resetDay() {
+  if (!confirm('¿Borrar todos los registros de hoy?')) return;
+  localStorage.removeItem(storageKey(selectedVendedor, selectedDay));
+  render();
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────────
+function renderList(clients) {
+  const stateMap = getStateMap(selectedVendedor, selectedDay);
+  const total = clients.length;
+  const visitadosCount = clients.filter(function(c) { return getTMData(selectedVendedor, c['CODIGO CLIENTE']).visitada; }).length;
+  const noVisitadosCount = total - visitadosCount;
+
+  const content = document.getElementById('app-content');
+  content.innerHTML = '';
+
+  const stats = document.createElement('div');
+  stats.className = 'stats-bar';
+  stats.innerHTML =
+    '<div class="stat"><div class="stat-num">' + total + '</div><div class="stat-label">Total del día</div></div>' +
+    '<div class="stat bought"><div class="stat-num">' + visitadosCount + '</div><div class="stat-label">Visitados</div></div>' +
+    '<div class="stat notbought"><div class="stat-num">' + noVisitadosCount + '</div><div class="stat-label">No visitados</div></div>';
+  content.appendChild(stats);
+
+  const filterBar = document.createElement('div');
+  filterBar.className = 'filter-bar';
+  filterBar.innerHTML =
+    '<label class="filter-chip presencial"><input type="checkbox" id="filter-presencial" checked onchange="applyFilter()"> Presencial</label>' +
+    '<label class="filter-chip ecom"><input type="checkbox" id="filter-ecom" checked onchange="applyFilter()"> Ecommerce</label>' +
+    '<label class="filter-chip telefonico"><input type="checkbox" id="filter-telefonico" checked onchange="applyFilter()"> Telefónico</label>';
+  content.appendChild(filterBar);
+
+  if (visitadosCount > 0) {
+    const resetBar = document.createElement('div');
+    resetBar.className = 'reset-bar';
+    resetBar.innerHTML = '<button class="btn-reset" onclick="resetDay()">Limpiar registros de hoy</button>';
+    content.appendChild(resetBar);
+  }
+
+  const list = document.createElement('div');
+  list.className = 'list';
+  clients.sort(function(a,b) { return parseInt(a['ORDEN']||0) - parseInt(b['ORDEN']||0); });
+  clients.forEach(function(c) { list.appendChild(buildCard(c, stateMap, false)); });
+  content.appendChild(list);
+}
+
+function render() {
+  if (!selectedVendedor) {
+    document.getElementById('app-content').innerHTML =
+      '<div class="empty"><div class="empty-icon">👋</div><div class="empty-text">Seleccioná tu nombre para ver tu ruteo</div></div>';
+    document.getElementById('days-strip').innerHTML = '';
+    return;
+  }
+  const vendRows = allData.filter(function(r) { return r['VENDEDOR'] === selectedVendedor; });
+  const days = [];
+  const seen = {};
+  vendRows.forEach(function(r) {
+    const d = r['DIA CARGA DE PEDIDO'].toUpperCase();
+    if (!seen[d]) { seen[d] = true; days.push(d); }
+  });
+  days.sort(function(a,b) { return DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b); });
+  if (!selectedDay || !days.includes(selectedDay)) {
+    const today = todayDayName();
+    selectedDay = days.includes(today) ? today : days[0];
+  }
+  renderDayTabs(days);
+  const clients = vendRows.filter(function(r) { return r['DIA CARGA DE PEDIDO'].toUpperCase() === selectedDay; });
+  if (!clients.length) {
+    document.getElementById('app-content').innerHTML =
+      '<div class="empty"><div class="empty-text">Sin visitas planificadas para este día.</div></div>';
+    return;
+  }
+  renderList(clients);
+}
+
+const TM_NOMBRES = ['Karina Fuentes', 'Victoria Herrera', 'Mailen Gallardo'];
+
+// ── DATOS DEMO (reemplazar por loadData() con CSV real en producción) ──────────
+var DEMO_DATA = [
+  // KARINA FUENTES — LUNES
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'CAFE BONAFIDE NQN', DIRECCION:'Hipolito Yrigoyen 123', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C2625', ORDEN:'1', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9516', Longitud:'-68.0591', OBJETIVO:'Activar exhibición Ferrero en mostrador. Revisar stock de Rocher y proponer combo precio.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'HOTEL TOWER NQN', DIRECCION:'Av. Argentina 456', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C1840', ORDEN:'2', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9530', Longitud:'-68.0610', OBJETIVO:'Presentar línea Paladini chacinados. Objetivo: incorporar al menos 2 SKUs nuevos en carta de desayuno.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'RESTAURANT LA PATAGONICA', DIRECCION:'San Martín 789', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C3102', ORDEN:'3', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Relevar heladera Frigor. Verificar planograma y completar faltantes de Swift.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'CAFETERIA DEL SOL', DIRECCION:'Roca 210', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C2980', ORDEN:'4', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Telefónico', Latitud:'', Longitud:'', OBJETIVO:'Seguimiento de pedido pendiente. Confirmar entrega de máquina Nescafé Professional.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'SUPERMERCADO VIDAL', DIRECCION:'Av. Olascoaga 315', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C1755', ORDEN:'5', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9488', Longitud:'-68.0542', OBJETIVO:'Negociar espacio adicional en góndola para campaña McCain. Colocar material POP.' },
+  // KARINA FUENTES — MIERCOLES
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'HOTEL ARRAYÁN', DIRECCION:'Belgrano 88', LOCALIDAD:'San Martín de los Andes', 'CODIGO CLIENTE':'C4401', ORDEN:'1', 'DIA CARGA DE PEDIDO':'MIERCOLES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-40.1565', Longitud:'-71.3529', OBJETIVO:'Presentar propuesta gastronomía Nescafé. Relevar equipamiento de café existente.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'CERVECERIA DEL LAGO', DIRECCION:'Villegas 54', LOCALIDAD:'San Martín de los Andes', 'CODIGO CLIENTE':'C4410', ORDEN:'2', 'DIA CARGA DE PEDIDO':'MIERCOLES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Incorporar línea Frigor snacks. Objetivo primer pedido mínimo 3 SKUs.' },
+  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'CONFITERIA NAHUEL', DIRECCION:'Av. San Martín 302', LOCALIDAD:'San Martín de los Andes', 'CODIGO CLIENTE':'C4388', ORDEN:'3', 'DIA CARGA DE PEDIDO':'MIERCOLES', 'Canal actual (Presencial / Autogestión)':'Ecommerce', Latitud:'', Longitud:'', OBJETIVO:'Verificar adopción de canal ecommerce. Ayudar con primer pedido online si es necesario.' },
+  // VICTORIA HERRERA — MARTES
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'BODEGON EL CRUCE', DIRECCION:'Av. Roca 1100', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3310', ORDEN:'1', 'DIA CARGA DE PEDIDO':'MARTES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-39.0333', Longitud:'-67.5833', OBJETIVO:'Activar campaña Plan Crecimiento Paladini. Relevar volumen actual y proponer meta mensual.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'SUPERMERCADO NORPATAGONIA', DIRECCION:'Islas Malvinas 450', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3275', ORDEN:'2', 'DIA CARGA DE PEDIDO':'MARTES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Auditoría de exhibición McCain congelados. Verificar temperatura de cámaras y facing.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'PANADERIA Y CAFE ROCA', DIRECCION:'9 de Julio 220', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3390', ORDEN:'3', 'DIA CARGA DE PEDIDO':'MARTES', 'Canal actual (Presencial / Autogestión)':'Telefónico', Latitud:'', Longitud:'', OBJETIVO:'Recuperar cliente inactivo. Presentar novedades de temporada y condiciones especiales.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'RESTAURANT MERIDIANO', DIRECCION:'Tucumán 67', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3418', ORDEN:'4', 'DIA CARGA DE PEDIDO':'MARTES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-39.0350', Longitud:'-67.5790', OBJETIVO:'Colocar heladera Frigor en salón. Confirmar condiciones de comodato con el dueño.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'ALMACEN DEL COMAHUE', DIRECCION:'Chacabuco 130', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3201', ORDEN:'5', 'DIA CARGA DE PEDIDO':'MARTES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Ampliar surtido Swift. Detectar oportunidades en categoría embutidos y hamburguesas.' },
+  // VICTORIA HERRERA — JUEVES
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'HOTEL CIPOLLETTI CENTER', DIRECCION:'Rivadavia 500', LOCALIDAD:'Cipolletti', 'CODIGO CLIENTE':'C2870', ORDEN:'1', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9333', Longitud:'-67.9833', OBJETIVO:'Presentar propuesta de desayuno buffet con productos Cedisur. Reunión con encargado de compras.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'CANTINA LOS LAPACHOS', DIRECCION:'Moreno 88', LOCALIDAD:'Cipolletti', 'CODIGO CLIENTE':'C2891', ORDEN:'2', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Relevar carta y detectar faltantes Paladini. Proponer incorporar línea salchichas premium.' },
+  { VENDEDOR:'Victoria Herrera', 'NOMBRE COMERCIAL':'KIOSCO CENTRAL CIPOLLETTI', DIRECCION:'Pellegrini 42', LOCALIDAD:'Cipolletti', 'CODIGO CLIENTE':'C2855', ORDEN:'3', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Ecommerce', Latitud:'', Longitud:'', OBJETIVO:'Verificar rotación Ferrero impulso. Reponer material de exhibición en mostrador.' },
+  // MAILEN GALLARDO — LUNES
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'HOTEL PATAGONIA PLAZA', DIRECCION:'Av. Argentina 1200', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C1901', ORDEN:'1', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9500', Longitud:'-68.0640', OBJETIVO:'Negociar contrato anual de abastecimiento. Reunión con Gerencia de Alimentos y Bebidas.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'BISTRO LOS NOTROS', DIRECCION:'Independencia 345', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C2011', ORDEN:'2', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Activar exhibición Ferrero Rocher en caja. Proponer combo regalo temporada invierno.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'CAFETERIA UNIVERSITARIA', DIRECCION:'Ruta 22 km 1234', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C2205', ORDEN:'3', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Telefónico', Latitud:'', Longitud:'', OBJETIVO:'Confirmar pedido quincenal. Revisar si incorporan nuevos puntos de venta en el campus.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'RESTAURANT EL PORTAL', DIRECCION:'Felix San Martín 78', LOCALIDAD:'Neuquén', 'CODIGO CLIENTE':'C1988', ORDEN:'4', 'DIA CARGA DE PEDIDO':'LUNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-38.9510', Longitud:'-68.0580', OBJETIVO:'Instalación de máquina Nescafé Professional. Coordinar capacitación barista para el personal.' },
+  // MAILEN GALLARDO — VIERNES
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'CLUB ANDINO BARILOCHE', DIRECCION:'20 de Febrero 30', LOCALIDAD:'Bariloche', 'CODIGO CLIENTE':'C5001', ORDEN:'1', 'DIA CARGA DE PEDIDO':'VIERNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-41.1335', Longitud:'-71.3103', OBJETIVO:'Presentar propuesta temporada alta. Ampliar volumen con productos Frigor y Swift para refugios.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'HOTEL LLAO LLAO SUITES', DIRECCION:'Bustillo km 25', LOCALIDAD:'Bariloche', 'CODIGO CLIENTE':'C5010', ORDEN:'2', 'DIA CARGA DE PEDIDO':'VIERNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'-41.0650', Longitud:'-71.5310', OBJETIVO:'Reunión con chef ejecutivo. Presentar catálogo premium Cedisur para menú de temporada.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'CERVECERIA BLEST', DIRECCION:'Av. Bustillo 7900', LOCALIDAD:'Bariloche', 'CODIGO CLIENTE':'C5022', ORDEN:'3', 'DIA CARGA DE PEDIDO':'VIERNES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Recuperar volumen de snacks Ferrero. Cliente redujo pedidos último mes — detectar causa.' },
+  { VENDEDOR:'Mailen Gallardo', 'NOMBRE COMERCIAL':'ALMACEN PATAGONICO', DIRECCION:'Quaglia 220', LOCALIDAD:'Bariloche', 'CODIGO CLIENTE':'C5035', ORDEN:'4', 'DIA CARGA DE PEDIDO':'VIERNES', 'Canal actual (Presencial / Autogestión)':'Ecommerce', Latitud:'', Longitud:'', OBJETIVO:'Auditar primera compra online. Verificar que el pedido llegó completo y en tiempo.' }
+];
+
+function loadData() {
+  allData = DEMO_DATA;
+  const sel = document.getElementById('vendedor-select');
+  var optGroup = document.createElement('optgroup');
+  optGroup.label = 'Trade Marketing';
+  TM_NOMBRES.forEach(function(n) {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    optGroup.appendChild(opt);
+  });
+  sel.appendChild(optGroup);
+  sel.onchange = function() { selectedVendedor = sel.value; selectedDay = ''; render(); setTimeout(verificarCierresPendientes, 500); };
+  const d = new Date();
+  document.getElementById('today-label').textContent =
+    d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+  render();
+}
+
+loadData();
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) cerrarModal();
+});
+document.getElementById('confirm-overlay').addEventListener('click', function(e) {
+  if (e.target === this) cerrarConfirm();
+});
+</script>
+</body>
+</html>
