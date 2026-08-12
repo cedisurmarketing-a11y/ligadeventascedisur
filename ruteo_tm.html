@@ -1481,7 +1481,7 @@ var DEMO_DATA = [
 ];
 
 const SHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=0';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&gid=0&cachebust=' + Date.now();
 
 // Normaliza cada fila para que el código funcione sin importar cómo están escritas las columnas
 function normalizarFila(row) {
@@ -1504,7 +1504,7 @@ function normalizarFila(row) {
 
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
-  fetch(CSV_URL)
+  fetch(CSV_URL, { cache: 'no-store' })
     .then(function(res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.text();
@@ -1513,11 +1513,19 @@ function loadData() {
       allData = parseCSV(csvText).map(normalizarFila);
       setupSelect();
     })
-    .catch(function() {
-      // Fallback a datos demo si falla la conexión
-      console.warn('No se pudo cargar la planilla. Usando datos demo.');
-      allData = DEMO_DATA;
-      setupSelect();
+    .catch(function(err) {
+      console.warn('Error cargando planilla:', err);
+      document.getElementById('app-content').innerHTML =
+        '<div class="loader" style="color:#c0392b;font-size:13px;padding:1.5rem;line-height:1.8">' +
+        '⚠ No se pudo cargar la planilla.<br><br>' +
+        'Verificá que la planilla de Google Sheets esté compartida como<br>' +
+        '<strong>"Cualquier persona con el enlace → Lector"</strong><br><br>' +
+        'Cargando datos de demo mientras tanto...' +
+        '</div>';
+      setTimeout(function() {
+        allData = DEMO_DATA.map(normalizarFila);
+        setupSelect();
+      }, 2000);
     });
 }
 
@@ -1560,23 +1568,4 @@ function setupSelect() {
     selectedVendedor = sel.value;
     selectedDay = '';
     render();
-    setTimeout(verificarCierresPendientes, 500);
-  };
-
-  var d = new Date();
-  document.getElementById('today-label').textContent =
-    d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
-  render();
-}
-
-loadData();
-
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) cerrarModal();
-});
-document.getElementById('confirm-overlay').addEventListener('click', function(e) {
-  if (e.target === this) cerrarConfirm();
-});
-</script>
-</body>
-</html>
+    setTimeout(verificarCierresPendien
