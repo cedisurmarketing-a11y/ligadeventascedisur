@@ -1482,7 +1482,28 @@ var DEMO_DATA = [
 
 const SHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=0';
-const CSV_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_CSV) + '&t=' + Date.now();
+const PROXIES = [
+  'https://corsproxy.io/?' + encodeURIComponent(SHEET_CSV),
+  'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_CSV),
+  'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(SHEET_CSV)
+];
+
+function fetchConProxy(proxies, index) {
+  if (index >= proxies.length) return Promise.reject(new Error('Todos los proxies fallaron'));
+  return fetch(proxies[index])
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function(text) {
+      if (!text || text.length < 10) throw new Error('Respuesta vacía');
+      return text;
+    })
+    .catch(function(err) {
+      console.warn('Proxy ' + index + ' falló:', err.message, '— probando siguiente...');
+      return fetchConProxy(proxies, index + 1);
+    });
+}
 
 // Normaliza cada fila para que el código funcione sin importar cómo están escritas las columnas
 function normalizarFila(row) {
@@ -1505,13 +1526,12 @@ function normalizarFila(row) {
 
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
-  fetch(CSV_URL)
-    .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    })
+  fetchConProxy(PROXIES, 0)
     .then(function(csvText) {
-      allData = parseCSV(csvText).map(normalizarFila);
+      var parsed = parseCSV(csvText).map(normalizarFila).filter(function(r) { return r['VENDEDOR'] && r['VENDEDOR'].trim(); });
+      if (parsed.length === 0) throw new Error('Sin datos');
+      allData = parsed;
+      console.log('Planilla cargada:', allData.length, 'filas');
       setupSelect();
     })
     .catch(function(err) {
@@ -1541,30 +1561,3 @@ function setupSelect() {
   TM_NOMBRES.forEach(function(n) {
     var opt = document.createElement('option');
     opt.value = n; opt.textContent = n;
-    optGroupTM.appendChild(opt);
-  });
-  sel.appendChild(optGroupTM);
-
-  // Vendedores del CSV que no sean TM (comparación sin distinción de mayúsculas)
-  var seen = {};
-  TM_NOMBRES.forEach(function(n) { seen[n.toLowerCase()] = true; });
-  var extras = [];
-  allData.forEach(function(r) {
-    var v = r['VENDEDOR'];
-    if (v && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = true; extras.push(v); }
-  });
-  if (extras.length) {
-    extras.sort();
-    var optGroupV = document.createElement('optgroup');
-    optGroupV.label = 'Vendedores';
-    extras.forEach(function(v) {
-      var opt = document.createElement('option');
-      opt.value = v; opt.textContent = v;
-      optGroupV.appendChild(opt);
-    });
-    sel.appendChild(optGroupV);
-  }
-
-  sel.onchange = function() {
-    selectedVendedor = sel.value;
-    selectedD
