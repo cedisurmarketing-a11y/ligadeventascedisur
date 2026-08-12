@@ -206,6 +206,12 @@
   .loader { text-align: center; padding: 3rem; color: var(--text3); font-size: 14px; }
   .reset-bar { padding: 0.5rem 1.25rem; display: flex; justify-content: flex-end; }
   .btn-reset { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; text-decoration: underline; padding: 4px; }
+  .orden-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 0 6px; border-bottom:1px solid var(--border); margin-bottom:6px; }
+  .orden-label { font-size:11px; color:var(--text3); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+  .orden-btns { display:flex; gap:6px; }
+  .orden-btn { width:34px; height:34px; border-radius:8px; border:1.5px solid var(--border); background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; }
+  .orden-btn:active { background:var(--accent-light); border-color:var(--accent); }
+  .orden-btn svg { width:16px; height:16px; stroke:var(--text2); fill:none; stroke-width:2; stroke-linecap:round; }
 
   /* TRADE MARKETING — OPCIÓN A */
   .tm-divider { height: 1px; background: #e8edf5; margin: 14px 0 12px; }
@@ -434,7 +440,37 @@ function currentWeekKey() {
 function storageKey(v, d) { return 'ruteo2_' + v + '_' + d + '_' + currentWeekKey(); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
-// ── TRADE MARKETING STORAGE ───────────────────────────────────────────────────
+// ── ORDEN PERSONALIZADO ───────────────────────────────────────────────────────
+function ordenKey(v, d) { return 'orden_' + v + '_' + d; }
+function getOrdenCustom(v, d) {
+  try { return JSON.parse(localStorage.getItem(ordenKey(v, d)) || '{}'); }
+  catch { return {}; }
+}
+function saveOrdenCustom(v, d, map) {
+  localStorage.setItem(ordenKey(v, d), JSON.stringify(map));
+}
+function getOrden(c) {
+  var custom = getOrdenCustom(selectedVendedor, selectedDay);
+  return custom[c['CODIGO CLIENTE']] !== undefined ? custom[c['CODIGO CLIENTE']] : parseInt(c['ORDEN'] || 99);
+}
+function moverCliente(codigo, direccion) {
+  // Obtener todos los clientes del día ordenados
+  var vendRows = allData.filter(function(r) { return r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase(); });
+  var dayClients = vendRows.filter(function(r) { return r['DIA CARGA DE PEDIDO'].toUpperCase() === selectedDay; });
+  dayClients.sort(function(a, b) { return getOrden(a) - getOrden(b); });
+  var idx = dayClients.findIndex(function(r) { return r['CODIGO CLIENTE'] === codigo; });
+  if (idx === -1) return;
+  var newIdx = idx + direccion;
+  if (newIdx < 0 || newIdx >= dayClients.length) return;
+  // Intercambiar órdenes
+  var custom = getOrdenCustom(selectedVendedor, selectedDay);
+  var orA = getOrden(dayClients[idx]);
+  var orB = getOrden(dayClients[newIdx]);
+  custom[dayClients[idx]['CODIGO CLIENTE']] = orB;
+  custom[dayClients[newIdx]['CODIGO CLIENTE']] = orA;
+  saveOrdenCustom(selectedVendedor, selectedDay, custom);
+  render();
+}
 function tmKey(v, c) { return 'tm_' + v + '_' + c + '_' + currentWeekKey(); }
 function tmFotosKey(v, c) { return 'tm_fotos_' + v + '_' + c + '_' + currentWeekKey(); }
 function getTMData(v, c) {
@@ -1023,30 +1059,48 @@ function buildCard(c, stateMap, isSearch) {
   }
   if (geoGuardada) detail.appendChild(geoChip);
 
+  // ── REORDENAR ──────────────────────────────────────────────────────────────
+  var ordenBar = document.createElement('div');
+  ordenBar.className = 'orden-bar';
+  var ordenLbl = document.createElement('span');
+  ordenLbl.className = 'orden-label';
+  ordenLbl.textContent = 'Posición en el ruteo';
+  var ordenBtns = document.createElement('div');
+  ordenBtns.className = 'orden-btns';
+  var btnUp = document.createElement('button');
+  btnUp.className = 'orden-btn';
+  btnUp.title = 'Mover arriba';
+  btnUp.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="18,15 12,9 6,15"/></svg>';
+  btnUp.addEventListener('click', function(e) { e.stopPropagation(); moverCliente(codigo, -1); });
+  var btnDown = document.createElement('button');
+  btnDown.className = 'orden-btn';
+  btnDown.title = 'Mover abajo';
+  btnDown.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>';
+  btnDown.addEventListener('click', function(e) { e.stopPropagation(); moverCliente(codigo, 1); });
+  ordenBtns.appendChild(btnUp); ordenBtns.appendChild(btnDown);
+  ordenBar.appendChild(ordenLbl); ordenBar.appendChild(ordenBtns);
+  detail.appendChild(ordenBar);
+
   // ── TRADE MARKETING ────────────────────────────────────────────────────────
   var tmData = getTMData(selectedVendedor, codigo);
   var tmDiv = document.createElement('div');
   tmDiv.className = 'tm-divider';
   detail.appendChild(tmDiv);
 
-  // 1. OBJETIVO (solo lectura + checklist)
+  // 1. OBJETIVO (solo lectura + checklist) — diseño prominente
   var secObj = document.createElement('div');
   secObj.className = 'tm-section';
-  var objTitle = document.createElement('div');
-  objTitle.className = 'tm-section-title';
-  objTitle.style.color = '#1d3a8f';
-  objTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1d3a8f" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Objetivo <span class="tm-badge tm-badge-plan">Definido previamente</span>';
+
   var objBlock = document.createElement('div');
-  objBlock.className = 'tm-block tm-block-obj';
-  var objLbl = document.createElement('div');
-  objLbl.className = 'tm-objetivo-label';
-  objLbl.textContent = 'Objetivo de la visita';
-  var objTxt = document.createElement('div');
-  objTxt.className = 'tm-objetivo-text';
-  objTxt.textContent = c['OBJETIVO'] || '—';
-  var checklistDiv = document.createElement('div');
-  checklistDiv.className = 'tm-checklist';
-  var savedChecks = tmData.checklist || [];
+  objBlock.style.cssText = 'background:linear-gradient(135deg,#1d3a8f 0%,#254899 100%);border-radius:12px;padding:14px 16px;margin-bottom:2px';
+
+  var objHeader = document.createElement('div');
+  objHeader.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px';
+  objHeader.innerHTML =
+    '<div style="width:32px;height:32px;background:rgba(255,255,255,0.18);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="22" y1="12" x2="18" y2="12"/></svg></div>' +
+    '<div><div style="font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:1px">Objetivo de la visita</div>' +
+    '<div style="font-size:10px;color:rgba(255,255,255,.5)">Definido previamente</div></div>';
 
   // Leer CHECK1 a CHECK5 del cliente, ignorar vacíos
   var clientChecks = [];
@@ -1055,21 +1109,29 @@ function buildCard(c, stateMap, isSearch) {
     if (val && val.trim()) clientChecks.push(val.trim());
   }
 
-  if (clientChecks.length === 0) {
-    var noCheck = document.createElement('div');
-    noCheck.style.cssText = 'font-size:12px;color:#9ab0cc;font-style:italic;padding:6px 0';
-    noCheck.textContent = 'Sin tareas definidas para este cliente.';
-    checklistDiv.appendChild(noCheck);
-  } else {
+  var objTxtBox = document.createElement('div');
+  objTxtBox.style.cssText = 'background:rgba(255,255,255,0.12);border-radius:8px;padding:10px 12px;margin-bottom:' + (clientChecks.length > 0 ? '10px' : '0');
+
+  var objTxt = document.createElement('div');
+  objTxt.style.cssText = 'font-size:14px;font-weight:600;color:#fff;line-height:1.5';
+  objTxt.textContent = c['OBJETIVO'] || '—';
+  objTxtBox.appendChild(objTxt);
+
+  var checklistDiv = document.createElement('div');
+  checklistDiv.style.cssText = 'display:flex;flex-direction:column;gap:0';
+  var savedChecks = tmData.checklist || [];
+
+  if (clientChecks.length > 0) {
     clientChecks.forEach(function(item, idx) {
       var row = document.createElement('div');
-      row.className = 'tm-check-item';
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.12);cursor:pointer';
+      if (idx === clientChecks.length - 1) row.style.borderBottom = 'none';
       var checked = savedChecks[idx] || false;
       var box = document.createElement('div');
-      box.className = 'tm-check-box' + (checked ? ' checked' : '');
-      box.innerHTML = '<svg viewBox="0 0 14 14"><path d="M2.5 7l3 3 6-6"/></svg>';
+      box.style.cssText = 'width:22px;height:22px;border-radius:5px;border:2px solid rgba(255,255,255,.4);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;background:' + (checked ? '#fff' : 'transparent');
+      box.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="' + (checked ? '#1d3a8f' : 'transparent') + '" stroke-width="2.5" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>';
       var lbl = document.createElement('span');
-      lbl.className = 'tm-check-label' + (checked ? ' done' : '');
+      lbl.style.cssText = 'font-size:13px;color:' + (checked ? 'rgba(255,255,255,.5)' : '#fff') + ';font-weight:500;' + (checked ? 'text-decoration:line-through' : '');
       lbl.textContent = item;
       row.appendChild(box); row.appendChild(lbl);
       row.addEventListener('click', function(e) {
@@ -1078,14 +1140,19 @@ function buildCard(c, stateMap, isSearch) {
         if (!d.checklist) d.checklist = [];
         d.checklist[idx] = !d.checklist[idx];
         saveTMData(selectedVendedor, codigo, d);
-        box.classList.toggle('checked', d.checklist[idx]);
-        lbl.classList.toggle('done', d.checklist[idx]);
+        box.style.background = d.checklist[idx] ? '#fff' : 'transparent';
+        box.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="' + (d.checklist[idx] ? '#1d3a8f' : 'transparent') + '" stroke-width="2.5" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>';
+        lbl.style.color = d.checklist[idx] ? 'rgba(255,255,255,.5)' : '#fff';
+        lbl.style.textDecoration = d.checklist[idx] ? 'line-through' : 'none';
       });
       checklistDiv.appendChild(row);
     });
   }
-  objBlock.appendChild(objLbl); objBlock.appendChild(objTxt); objBlock.appendChild(checklistDiv);
-  secObj.appendChild(objTitle); secObj.appendChild(objBlock);
+
+  objBlock.appendChild(objHeader);
+  objBlock.appendChild(objTxtBox);
+  if (clientChecks.length > 0) objBlock.appendChild(checklistDiv);
+  secObj.appendChild(objBlock);
   detail.appendChild(secObj);
 
   // 2. EJECUCIÓN EN PUNTO DE VENTA
@@ -1183,24 +1250,6 @@ function buildCard(c, stateMap, isSearch) {
   revWrap.appendChild(revTA); revWrap.appendChild(revMicBtn); revBlock.appendChild(revWrap); revBlock.appendChild(revMicStatus);
   secRev.appendChild(revTitle); secRev.appendChild(revBlock);
   detail.appendChild(secRev);
-
-  // 5. BOTONES: Maps → Solicitar cambio → Actualizar ubicación
-  var botonesDiv = document.createElement('div');
-  botonesDiv.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:14px';
-  var cLat = c['Latitud'] || '', cLng = c['Longitud'] || '';
-  var tmMapsHref = (cLat && cLng) ? 'https://maps.google.com/?q=' + cLat + ',' + cLng : 'https://maps.google.com/?q=' + encodeURIComponent((c['DIRECCION']||'') + ' ' + (c['LOCALIDAD']||''));
-  var btnMaps = document.createElement('a'); btnMaps.href = tmMapsHref; btnMaps.target = '_blank';
-  btnMaps.className = 'tm-btn tm-btn-maps'; btnMaps.style.textDecoration = 'none';
-  btnMaps.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Abrir en Maps';
-  btnMaps.addEventListener('click', function(e) { e.stopPropagation(); });
-  var btnCambio = document.createElement('div'); btnCambio.className = 'tm-btn tm-btn-cambio';
-  btnCambio.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> Solicitar cambio en el ruteo';
-  btnCambio.addEventListener('click', function(e) { e.stopPropagation(); abrirModal(c); });
-  var btnUbicacion = document.createElement('div'); btnUbicacion.className = 'tm-btn tm-btn-geo';
-  btnUbicacion.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Actualizar ubicación';
-  btnUbicacion.addEventListener('click', function(e) { e.stopPropagation(); capturarGeo(codigo, c['NOMBRE COMERCIAL'], btnUbicacion); });
-  botonesDiv.appendChild(btnMaps); botonesDiv.appendChild(btnCambio); botonesDiv.appendChild(btnUbicacion);
-  detail.appendChild(botonesDiv);
   // ── FIN TRADE MARKETING ────────────────────────────────────────────────────
 
   card.appendChild(main);
@@ -1393,14 +1442,6 @@ function renderList(clients) {
     '<div class="stat notbought"><div class="stat-num">' + noVisitadosCount + '</div><div class="stat-label">No visitados</div></div>';
   content.appendChild(stats);
 
-  const filterBar = document.createElement('div');
-  filterBar.className = 'filter-bar';
-  filterBar.innerHTML =
-    '<label class="filter-chip presencial"><input type="checkbox" id="filter-presencial" checked onchange="applyFilter()"> Presencial</label>' +
-    '<label class="filter-chip ecom"><input type="checkbox" id="filter-ecom" checked onchange="applyFilter()"> Ecommerce</label>' +
-    '<label class="filter-chip telefonico"><input type="checkbox" id="filter-telefonico" checked onchange="applyFilter()"> Telefónico</label>';
-  content.appendChild(filterBar);
-
   if (visitadosCount > 0) {
     const resetBar = document.createElement('div');
     resetBar.className = 'reset-bar';
@@ -1410,7 +1451,7 @@ function renderList(clients) {
 
   const list = document.createElement('div');
   list.className = 'list';
-  clients.sort(function(a,b) { return parseInt(a['ORDEN']||0) - parseInt(b['ORDEN']||0); });
+  clients.sort(function(a,b) { return getOrden(a) - getOrden(b); });
   clients.forEach(function(c) { list.appendChild(buildCard(c, stateMap, false)); });
   content.appendChild(list);
 }
