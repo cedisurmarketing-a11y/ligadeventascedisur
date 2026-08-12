@@ -1461,14 +1461,39 @@ function normalizarFila(row) {
 }
 
 const SPREADSHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
+const GVIZ_URL = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:csv&gid=0&t=' + Date.now();
 
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
 
+  // Intentar fetch directo
+  fetch(GVIZ_URL)
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function(text) {
+      var parsed = parseCSV(text).map(normalizarFila).filter(function(r) {
+        return r['VENDEDOR'] && r['VENDEDOR'].trim();
+      });
+      if (parsed.length === 0) throw new Error('Sin datos');
+      allData = parsed;
+      setupSelect();
+    })
+    .catch(function(err) {
+      console.warn('fetch directo falló:', err.message, '— intentando JSONP...');
+      loadDataJSONP();
+    });
+}
+
+function loadDataJSONP() {
   var timeout = setTimeout(function() {
     document.getElementById('app-content').innerHTML =
-      '<div class="loader" style="color:#c0392b">No se pudo cargar la planilla.<br>Verificá que esté publicada en Google Sheets.</div>';
-  }, 12000);
+      '<div class="loader" style="color:#c0392b;padding:1.5rem;line-height:1.8">' +
+      '⚠ No se pudo cargar la planilla.<br><br>' +
+      'Verificá que la planilla esté compartida como<br>' +
+      '<strong>Cualquier persona con el enlace → Lector</strong></div>';
+  }, 10000);
 
   window._tmCallback = function(data) {
     clearTimeout(timeout);
@@ -1484,11 +1509,12 @@ function loadData() {
         return obj;
       });
       allData = rows.map(normalizarFila).filter(function(r) { return r['VENDEDOR'] && r['VENDEDOR'].trim(); });
-      if (allData.length === 0) throw new Error('Sin filas válidas');
+      if (allData.length === 0) throw new Error('Sin filas');
       setupSelect();
     } catch(e) {
+      clearTimeout(timeout);
       document.getElementById('app-content').innerHTML =
-        '<div class="loader" style="color:#c0392b">Planilla cargada pero sin datos válidos.<br>Verificá que la pestaña CLIENTES tenga datos.</div>';
+        '<div class="loader" style="color:#c0392b;padding:1.5rem">⚠ Planilla cargada pero sin datos válidos.</div>';
     }
   };
 
@@ -1497,9 +1523,7 @@ function loadData() {
   script.onerror = function() {
     clearTimeout(timeout);
     document.getElementById('app-content').innerHTML =
-      '<div class="loader" style="color:#c0392b">Error al cargar la planilla.<br>Verificá que esté compartida como "Cualquier persona con el enlace".</div>';
-    var s = document.getElementById('_tmScript');
-    if (s) s.parentNode.removeChild(s);
+      '<div class="loader" style="color:#c0392b;padding:1.5rem">⚠ Error al acceder a la planilla.</div>';
   };
   script.src = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
     '/gviz/tq?tqx=out:json&gid=0&callback=_tmCallback&t=' + Date.now();
