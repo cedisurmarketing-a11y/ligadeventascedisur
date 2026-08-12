@@ -628,7 +628,7 @@ function cerrarJornada(vendedor, dia, fecha) {
   var hist = getHistorial(vendedor);
   var stateMap = getStateMap(vendedor, dia);
   var clientes = allData.filter(function(r) {
-    return r['VENDEDOR'] === vendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === dia;
+    return r['VENDEDOR'].toLowerCase() === vendedor.toLowerCase() && r['DIA CARGA DE PEDIDO'].toUpperCase() === dia;
   });
   clientes.forEach(function(c) {
     var codigo = c['CODIGO CLIENTE'];
@@ -658,7 +658,7 @@ function verificarCierresPendientes() {
   var hoy = todayStr();
   var dias = DAYS_ORDER.filter(function(d) {
     return allData.some(function(r) {
-      return r['VENDEDOR'] === selectedVendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === d;
+      return r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase() && r['DIA CARGA DE PEDIDO'].toUpperCase() === d;
     });
   });
   // Revisar los últimos 7 días (solo días anteriores, nunca hoy)
@@ -672,7 +672,7 @@ function verificarCierresPendientes() {
     // Verificar si ya se cerró ese día
     var hist = getHistorial(selectedVendedor);
     var clientes = allData.filter(function(r) {
-      return r['VENDEDOR'] === selectedVendedor && r['DIA CARGA DE PEDIDO'].toUpperCase() === diaNombre;
+      return r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase() && r['DIA CARGA DE PEDIDO'].toUpperCase() === diaNombre;
     });
     if (!clientes.length) continue;
     var primero = clientes[0]['CODIGO CLIENTE'];
@@ -743,7 +743,7 @@ function onSearch() {
 }
 function renderSearchResults() {
   if (!selectedVendedor) return;
-  const vendRows = allData.filter(function(r) { return r['VENDEDOR'] === selectedVendedor; });
+  const vendRows = allData.filter(function(r) { return r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase(); });
   const matches = vendRows.filter(function(r) {
     const q = searchQuery;
     return r['NOMBRE COMERCIAL'].toLowerCase().includes(q) ||
@@ -769,7 +769,7 @@ function renderSearchResults() {
 
 // ── MODAL ──────────────────────────────────────────────────────────────────────
 function abrirModal(codigo) {
-  const row = allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo && r['VENDEDOR'] === selectedVendedor; })
+  const row = allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo && r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase(); })
            || allData.find(function(r) { return r['CODIGO CLIENTE'] === codigo; });
   if (!row) return;
   modalData = row;
@@ -1422,7 +1422,7 @@ function render() {
     document.getElementById('days-strip').innerHTML = '';
     return;
   }
-  const vendRows = allData.filter(function(r) { return r['VENDEDOR'] === selectedVendedor; });
+  const vendRows = allData.filter(function(r) { return r['VENDEDOR'].toLowerCase() === selectedVendedor.toLowerCase(); });
   const days = [];
   const seen = {};
   vendRows.forEach(function(r) {
@@ -1483,6 +1483,25 @@ var DEMO_DATA = [
 const SHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=CLIENTES';
 
+// Normaliza cada fila para que el código funcione sin importar cómo están escritas las columnas
+function normalizarFila(row) {
+  var r = {};
+  Object.keys(row).forEach(function(k) { r[k.trim()] = row[k]; });
+  // DIA: acepta DIA VISITA o DIA CARGA DE PEDIDO
+  if (!r['DIA CARGA DE PEDIDO'] && r['DIA VISITA']) r['DIA CARGA DE PEDIDO'] = r['DIA VISITA'];
+  // CHECK con espacio: CHECK 2 → CHECK2, CHECK 3 → CHECK3, etc.
+  for (var i = 2; i <= 6; i++) {
+    if (!r['CHECK' + i] && r['CHECK ' + i]) r['CHECK' + i] = r['CHECK ' + i];
+  }
+  // Canal: si no existe, poner Presencial por defecto
+  if (!r['Canal actual (Presencial / Autogestión)']) r['Canal actual (Presencial / Autogestión)'] = 'Presencial';
+  // CODIGO CLIENTE: si no existe usar NOMBRE COMERCIAL como clave
+  if (!r['CODIGO CLIENTE']) r['CODIGO CLIENTE'] = r['NOMBRE COMERCIAL'] || Math.random().toString(36).slice(2);
+  // ORDEN: si no existe usar 1
+  if (!r['ORDEN']) r['ORDEN'] = '1';
+  return r;
+}
+
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
   fetch(CSV_URL)
@@ -1491,7 +1510,7 @@ function loadData() {
       return res.text();
     })
     .then(function(csvText) {
-      allData = parseCSV(csvText);
+      allData = parseCSV(csvText).map(normalizarFila);
       setupSelect();
     })
     .catch(function() {
@@ -1517,13 +1536,13 @@ function setupSelect() {
   });
   sel.appendChild(optGroupTM);
 
-  // Vendedores del CSV que no sean TM
+  // Vendedores del CSV que no sean TM (comparación sin distinción de mayúsculas)
   var seen = {};
-  TM_NOMBRES.forEach(function(n) { seen[n] = true; });
+  TM_NOMBRES.forEach(function(n) { seen[n.toLowerCase()] = true; });
   var extras = [];
   allData.forEach(function(r) {
     var v = r['VENDEDOR'];
-    if (v && !seen[v]) { seen[v] = true; extras.push(v); }
+    if (v && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = true; extras.push(v); }
   });
   if (extras.length) {
     extras.sort();
