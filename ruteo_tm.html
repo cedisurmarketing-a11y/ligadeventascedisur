@@ -212,6 +212,11 @@
   .orden-btn { width:34px; height:34px; border-radius:8px; border:1.5px solid var(--border); background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; }
   .orden-btn:active { background:var(--accent-light); border-color:var(--accent); }
   .orden-btn svg { width:16px; height:16px; stroke:var(--text2); fill:none; stroke-width:2; stroke-linecap:round; }
+  .btn-enviar-visita { width:100%; padding:14px; border-radius:10px; border:none; background:#254899; color:#fff; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; font-family:'DM Sans',sans-serif; -webkit-tap-highlight-color:transparent; transition:background .15s; }
+  .btn-enviar-visita:active { background:#1d3a8f; }
+  .btn-enviar-visita.enviado { background:#2D8A52; }
+  .btn-enviar-visita.error { background:#c0392b; }
+  .btn-enviar-visita:disabled { opacity:.7; cursor:not-allowed; }
 
   /* TRADE MARKETING — OPCIÓN A */
   .tm-divider { height: 1px; background: #e8edf5; margin: 14px 0 12px; }
@@ -439,6 +444,67 @@ function currentWeekKey() {
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 function storageKey(v, d) { return 'ruteo2_' + v + '_' + d + '_' + currentWeekKey(); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
+
+const TM_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbwjwDt2r1bKWon7PWBfkbgc_ivpZprb_o3W64pUTnBkjLKfOKkOwN1yEB3UQA5idLqO/exec';
+
+function enviarVisita(c, btn) {
+  var codigo = c['CODIGO CLIENTE'];
+  var tmData = getTMData(selectedVendedor, codigo);
+  var fotos = getTMFotos(selectedVendedor, codigo);
+  var checklist = tmData.checklist || [];
+
+  // Armar lista de checks tildados
+  var clientChecks = [];
+  for (var ci = 1; ci <= 5; ci++) {
+    var v = c['CHECK' + ci];
+    if (v && v.trim()) clientChecks.push(v.trim());
+  }
+  var checksTildados = clientChecks.filter(function(_, idx) { return checklist[idx]; });
+
+  var payload = {
+    vendedor: selectedVendedor,
+    nombreComercial: c['NOMBRE COMERCIAL'] || '',
+    codigo: codigo,
+    dia: selectedDay,
+    visitada: tmData.visitada || false,
+    visitadaTs: tmData.visitadaTs || '',
+    comentario: tmData.comentario || '',
+    checklist: checksTildados,
+    revision: tmData.revision || '',
+    fotos: fotos
+  };
+
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Enviando...';
+
+  fetch(TM_SUBMIT_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      btn.classList.add('enviado');
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Visita enviada';
+      // Guardar en localStorage que fue enviada
+      var d = getTMData(selectedVendedor, codigo);
+      d.enviada = true;
+      d.enviadaTs = new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      saveTMData(selectedVendedor, codigo, d);
+    } else {
+      throw new Error(data.error || 'Error desconocido');
+    }
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.classList.add('error');
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Error — Tocá para reintentar';
+    setTimeout(function() {
+      btn.classList.remove('error');
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
+    }, 3000);
+  });
+}
 
 // ── ORDEN PERSONALIZADO ───────────────────────────────────────────────────────
 function ordenKey(v, d) { return 'orden_' + v + '_' + d; }
@@ -1250,6 +1316,20 @@ function buildCard(c, stateMap, isSearch) {
   revWrap.appendChild(revTA); revWrap.appendChild(revMicBtn); revBlock.appendChild(revWrap); revBlock.appendChild(revMicStatus);
   secRev.appendChild(revTitle); secRev.appendChild(revBlock);
   detail.appendChild(secRev);
+
+  // BOTÓN ENVIAR VISITA
+  var tmData2 = getTMData(selectedVendedor, codigo);
+  var btnEnviar = document.createElement('button');
+  btnEnviar.className = 'btn-enviar-visita' + (tmData2.enviada ? ' enviado' : '');
+  if (tmData2.enviada) {
+    btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Enviada el ' + (tmData2.enviadaTs || '');
+    btnEnviar.disabled = true;
+  } else {
+    btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
+    btnEnviar.addEventListener('click', function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar); });
+  }
+  detail.appendChild(btnEnviar);
+
   // ── FIN TRADE MARKETING ────────────────────────────────────────────────────
 
   card.appendChild(main);
