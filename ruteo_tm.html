@@ -1447,16 +1447,7 @@ function render() {
 const TM_NOMBRES = ['Karina Fuentes', 'Victoria Herrera', 'Mailen Gallardo'];
 
 // ── DATOS DEMO (reemplazar por loadData() con CSV real en producción) ──────────
-var DEMO_DATA = [
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'KIOSCO OPEN', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3306', ORDEN:'1', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'Revision Stock Ferrero', CHECK2:'Revision productos en gondola', CHECK3:'Revision Stock Helados', CHECK4:'Revision Freezer', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'EESS PUMA- SAN JUAN', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C6609', ORDEN:'2', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'SUPERMERCADO ROCA', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3184', ORDEN:'3', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'SUPERMERCADO SOL', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C1409', ORDEN:'4', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'PUMA GLOBAL OIL G.ROCA', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3766', ORDEN:'5', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'KIOSCO SURB1', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C6851', ORDEN:'6', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'SHELL SHOP ROCA', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C1288', ORDEN:'7', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' },
-  { VENDEDOR:'Karina Fuentes', 'NOMBRE COMERCIAL':'SUPERMERCADO CADA DIA', DIRECCION:'', LOCALIDAD:'General Roca', 'CODIGO CLIENTE':'C3302', ORDEN:'8', 'DIA CARGA DE PEDIDO':'JUEVES', 'Canal actual (Presencial / Autogestión)':'Presencial', Latitud:'', Longitud:'', OBJETIVO:'Tienda Perfecta Ferrero - Implementacion Excelencia Frigor', CHECK1:'', CHECK2:'', CHECK3:'', CHECK4:'', CHECK5:'' }
-];
+
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwncm3Fs5BVAl6gBnv0CtpTX-3Q2oW6HS8gqIL_zeW9rzN-oaXBqtXaBXnPUlMlYzg2LQ/exec';
 
@@ -1473,24 +1464,50 @@ function normalizarFila(row) {
   return r;
 }
 
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSXcL5zHUgsgnArvVawb_xA_MawoL6Bt-3zyVae4hJUyHUft2hpRbXG0MbRJ840HSYzYGUGKM9RDCjI/pub?gid=0&single=true&output=csv';
+const SPREADSHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
 
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
-  fetch(CSV_URL)
-    .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    })
-    .then(function(csvText) {
-      var parsed = parseCSV(csvText).map(normalizarFila).filter(function(r) { return r['VENDEDOR'] && r['VENDEDOR'].trim(); });
-      allData = parsed.length > 0 ? parsed : DEMO_DATA.map(normalizarFila);
+
+  var timeout = setTimeout(function() {
+    document.getElementById('app-content').innerHTML =
+      '<div class="loader" style="color:#c0392b">No se pudo cargar la planilla.<br>Verificá que esté publicada en Google Sheets.</div>';
+  }, 12000);
+
+  window._tmCallback = function(data) {
+    clearTimeout(timeout);
+    var s = document.getElementById('_tmScript');
+    if (s) s.parentNode.removeChild(s);
+    try {
+      var cols = data.table.cols.map(function(c) { return String(c.label || c.id || '').trim(); });
+      var rows = (data.table.rows || []).map(function(row) {
+        var obj = {};
+        (row.c || []).forEach(function(cell, i) {
+          obj[cols[i]] = (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : '';
+        });
+        return obj;
+      });
+      allData = rows.map(normalizarFila).filter(function(r) { return r['VENDEDOR'] && r['VENDEDOR'].trim(); });
+      if (allData.length === 0) throw new Error('Sin filas válidas');
       setupSelect();
-    })
-    .catch(function() {
-      allData = DEMO_DATA.map(normalizarFila);
-      setupSelect();
-    });
+    } catch(e) {
+      document.getElementById('app-content').innerHTML =
+        '<div class="loader" style="color:#c0392b">Planilla cargada pero sin datos válidos.<br>Verificá que la pestaña CLIENTES tenga datos.</div>';
+    }
+  };
+
+  var script = document.createElement('script');
+  script.id = '_tmScript';
+  script.onerror = function() {
+    clearTimeout(timeout);
+    document.getElementById('app-content').innerHTML =
+      '<div class="loader" style="color:#c0392b">Error al cargar la planilla.<br>Verificá que esté compartida como "Cualquier persona con el enlace".</div>';
+    var s = document.getElementById('_tmScript');
+    if (s) s.parentNode.removeChild(s);
+  };
+  script.src = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
+    '/gviz/tq?tqx=out:json&gid=0&callback=_tmCallback&t=' + Date.now();
+  document.head.appendChild(script);
 }
 
 function setupSelect() {
