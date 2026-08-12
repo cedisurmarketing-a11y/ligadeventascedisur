@@ -447,7 +447,7 @@ function todayStr() { return new Date().toISOString().slice(0,10); }
 
 const TM_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbz8Wq36PvLfd1PZJo1v7Bh0UP4hBSnff-eemu58F8EhDS8o2Q6B2FBxu-ukITDfHBtM/exec';
 
-function enviarVisita(c, btn) {
+function enviarVisita(c, btn, linkDeshacer) {
   var codigo = c['CODIGO CLIENTE'];
   var tmData = getTMData(selectedVendedor, codigo);
   var fotos = getTMFotos(selectedVendedor, codigo);
@@ -487,6 +487,7 @@ function enviarVisita(c, btn) {
         var d = getTMData(selectedVendedor, codigo);
         d.enviada = true; d.enviadaTs = ts;
         saveTMData(selectedVendedor, codigo, d);
+        if (linkDeshacer) linkDeshacer.style.display = 'block';
         // Enviar fotos en background si las hay
         if (fotos.length > 0) enviarFotos(fotos, selectedVendedor, codigo, ts);
       } else {
@@ -1337,9 +1338,30 @@ function buildCard(c, stateMap, isSearch) {
     btnEnviar.disabled = true;
   } else {
     btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
-    btnEnviar.addEventListener('click', function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar); });
+    btnEnviar.addEventListener('click', function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); });
   }
   detail.appendChild(btnEnviar);
+
+  // Link para deshacer envío
+  var linkDeshacer = document.createElement('div');
+  linkDeshacer.style.cssText = 'text-align:center;margin-top:6px;' + (tmData2.enviada ? '' : 'display:none');
+  var btnDeshacer = document.createElement('button');
+  btnDeshacer.style.cssText = 'background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;font-family:"DM Sans",sans-serif;padding:4px';
+  btnDeshacer.textContent = 'Deshacer envío';
+  btnDeshacer.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (!confirm('¿Deshacer el envío de esta visita?')) return;
+    var d = getTMData(selectedVendedor, codigo);
+    delete d.enviada; delete d.enviadaTs;
+    saveTMData(selectedVendedor, codigo, d);
+    btnEnviar.classList.remove('enviado');
+    btnEnviar.disabled = false;
+    btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
+    btnEnviar.onclick = function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); };
+    linkDeshacer.style.display = 'none';
+  });
+  linkDeshacer.appendChild(btnDeshacer);
+  detail.appendChild(linkDeshacer);
 
   // ── FIN TRADE MARKETING ────────────────────────────────────────────────────
 
