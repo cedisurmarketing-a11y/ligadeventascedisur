@@ -495,6 +495,7 @@ function enviarVisita(c, btn, linkDeshacer) {
     visitadaTs: tmData.visitadaTs || '',
     comentario: tmData.comentario || '',
     checklist: checksTildados,
+    checkComments: (tmData.checkComments || []),
     revision: tmData.revision || '',
     fechaReal: selectedDate,
     tipo: 'RUTEO'
@@ -1178,27 +1179,6 @@ function buildCard(c, stateMap, isSearch) {
   if (geoGuardada) detail.appendChild(geoChip);
 
   // ── REORDENAR ──────────────────────────────────────────────────────────────
-  var histAll = getHistorial(selectedVendedor);
-  var histCliente = ((histAll[codigo] || []).slice(-3)).reverse();
-  if (histCliente.length > 0) {
-    var histDiv = document.createElement('div');
-    histDiv.style.cssText = 'padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px';
-    var histLbl = document.createElement('div');
-    histLbl.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:5px';
-    histLbl.textContent = 'Últimas visitas';
-    var histRow = document.createElement('div');
-    histRow.className = 'hist-row';
-    histCliente.forEach(function(h) {
-      var pill = document.createElement('span');
-      pill.className = 'hist-pill ' + (h.estado === 'bought' ? 'v' : 'nv');
-      pill.textContent = (h.estado === 'bought' ? '✓ ' : '✗ ') + (h.fecha || '').slice(5).split('-').reverse().join('/');
-      histRow.appendChild(pill);
-    });
-    histDiv.appendChild(histLbl);
-    histDiv.appendChild(histRow);
-    detail.appendChild(histDiv);
-  }
-
   var ordenBar = document.createElement('div');
   ordenBar.className = 'orden-bar';
   var ordenLbl = document.createElement('span');
@@ -1275,12 +1255,12 @@ function buildCard(c, stateMap, isSearch) {
       var checkComents = tmData.checkComments || [];
       row.appendChild(box); row.appendChild(lbl);
 
-      // Comentario por check
+      // Comentario por check — siempre visible
       var checkTA = document.createElement('textarea');
-      checkTA.className = 'check-coment' + (checked ? ' visible' : '');
+      checkTA.style.cssText = 'width:100%;border:none;background:rgba(255,255,255,0.1);border-radius:6px;padding:6px 10px;font-size:12px;color:#fff;font-family:"DM Sans",sans-serif;resize:none;outline:none;margin-top:5px;min-height:34px;display:block;box-sizing:border-box';
       checkTA.placeholder = 'Comentario...';
-      checkTA.value = checkComents[idx] || '';
       checkTA.rows = 1;
+      checkTA.value = checkComents[idx] || '';
       checkTA.addEventListener('click', function(e) { e.stopPropagation(); });
       checkTA.addEventListener('blur', function() {
         var d = getTMData(selectedVendedor, codigo);
@@ -1290,7 +1270,7 @@ function buildCard(c, stateMap, isSearch) {
       });
 
       var checkRow2 = document.createElement('div');
-      checkRow2.style.cssText = 'padding-left:32px';
+      checkRow2.style.cssText = 'padding-left:32px;padding-bottom:6px';
       checkRow2.appendChild(checkTA);
 
       row.addEventListener('click', function(e) {
@@ -1303,8 +1283,6 @@ function buildCard(c, stateMap, isSearch) {
         box.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="' + (d.checklist[idx] ? '#1d3a8f' : 'transparent') + '" stroke-width="2.5" stroke-linecap="round"><path d="M2.5 7l3 3 6-6"/></svg>';
         lbl.style.color = d.checklist[idx] ? 'rgba(255,255,255,.5)' : '#fff';
         lbl.style.textDecoration = d.checklist[idx] ? 'line-through' : 'none';
-        checkTA.classList.toggle('visible', d.checklist[idx]);
-        if (d.checklist[idx]) setTimeout(function() { checkTA.focus(); }, 100);
       });
 
       checklistDiv.appendChild(row);
@@ -1688,6 +1666,12 @@ function renderList(clients) {
     '<input class="esp-input" id="esp-direccion" placeholder="Dirección (opcional)" type="text">' +
     '<input class="esp-input" id="esp-objetivo" placeholder="Objetivo / motivo de la visita" type="text">' +
     '<textarea class="esp-textarea" id="esp-comentario" placeholder="Comentario de la visita..."></textarea>' +
+    '<div>' +
+    '<div style="font-size:11px;font-weight:600;color:#254899;margin-bottom:6px">📷 Fotos</div>' +
+    '<input type="file" id="esp-foto-input" accept="image/*" multiple style="display:none">' +
+    '<div id="esp-foto-zone" style="border:2px dashed #7090c0;border-radius:8px;padding:16px;text-align:center;cursor:pointer;background:#f5f8ff;font-size:13px;color:#254899;font-weight:600">Subir fotos</div>' +
+    '<div id="esp-foto-thumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>' +
+    '</div>' +
     '<div style="display:flex;gap:8px">' +
     '<button class="btn-esp-enviar" id="btn-esp-enviar" style="flex:1">Guardar y enviar</button>' +
     '<button class="btn-esp-enviar" id="btn-esp-cancelar" style="background:#aaa;flex:0 0 auto">Cancelar</button>' +
@@ -1697,45 +1681,71 @@ function renderList(clients) {
     espForm.classList.add('open');
     btnAddEsp.style.display = 'none';
     document.getElementById('esp-nombre').focus();
-  });
-
-  espForm.querySelector('#btn-esp-cancelar').addEventListener('click', function() {
-    espForm.classList.remove('open');
-    btnAddEsp.style.display = '';
-  });
-
-  espForm.querySelector('#btn-esp-enviar').addEventListener('click', function() {
-    var nombre = document.getElementById('esp-nombre').value.trim();
-    if (!nombre) { alert('Ingresá el nombre del cliente'); return; }
-    var esp = {
-      nombre: nombre,
-      direccion: document.getElementById('esp-direccion').value.trim(),
-      objetivo: document.getElementById('esp-objetivo').value.trim(),
-      comentario: document.getElementById('esp-comentario').value.trim(),
-      fecha: selectedDate,
-      ts: new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
-    };
-    var esps2 = getEspontaneas(selectedVendedor, selectedDay);
-    esps2.push(esp);
-    saveEspontaneas(selectedVendedor, selectedDay, esps2);
-    // Enviar al Apps Script
-    var payload = Object.assign({}, esp, {
-      vendedor: selectedVendedor,
-      nombreComercial: esp.nombre,
-      codigo: 'ESP',
-      dia: selectedDay,
-      visitada: true,
-      visitadaTs: esp.ts,
-      checklist: [],
-      revision: '',
-      fechaReal: selectedDate,
-      tipo: 'ESPONTANEA'
+    // Zona de fotos
+    var espFotoInput = document.getElementById('esp-foto-input');
+    var espFotoZone = document.getElementById('esp-foto-zone');
+    var espFotoThumbs = document.getElementById('esp-foto-thumbs');
+    var espFotos = [];
+    espFotoZone.addEventListener('click', function() { espFotoInput.click(); });
+    espFotoInput.addEventListener('change', function(e) {
+      Array.from(e.target.files).forEach(function(file) {
+        if (espFotos.length >= 5) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          espFotos.push(ev.target.result);
+          var img = document.createElement('img');
+          img.src = ev.target.result;
+          img.style.cssText = 'width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid #c5d4f0';
+          espFotoThumbs.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+      espFotoInput.value = '';
     });
-    fetch(TM_SUBMIT_URL + '?data=' + encodeURIComponent(JSON.stringify(payload))).catch(function(){});
-    espSection.insertBefore(buildEspontaneaCard(esp, esps2.length - 1), btnAddEsp);
-    espForm.classList.remove('open');
-    btnAddEsp.style.display = '';
-    ['esp-nombre','esp-direccion','esp-objetivo','esp-comentario'].forEach(function(id) { document.getElementById(id).value = ''; });
+
+    espForm.querySelector('#btn-esp-cancelar').addEventListener('click', function() {
+      espForm.classList.remove('open');
+      btnAddEsp.style.display = '';
+      espFotos = [];
+      espFotoThumbs.innerHTML = '';
+    });
+
+    espForm.querySelector('#btn-esp-enviar').addEventListener('click', function() {
+      var nombre = document.getElementById('esp-nombre').value.trim();
+      if (!nombre) { alert('Ingresá el nombre del cliente'); return; }
+      var esp = {
+        nombre: nombre,
+        direccion: document.getElementById('esp-direccion').value.trim(),
+        objetivo: document.getElementById('esp-objetivo').value.trim(),
+        comentario: document.getElementById('esp-comentario').value.trim(),
+        fecha: selectedDate,
+        ts: new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+      };
+      var esps2 = getEspontaneas(selectedVendedor, selectedDay);
+      esps2.push(esp);
+      saveEspontaneas(selectedVendedor, selectedDay, esps2);
+      var payload = Object.assign({}, esp, {
+        vendedor: selectedVendedor,
+        nombreComercial: esp.nombre,
+        codigo: 'ESP',
+        dia: selectedDay,
+        visitada: true,
+        visitadaTs: esp.ts,
+        checklist: [],
+        revision: '',
+        fechaReal: selectedDate,
+        tipo: 'ESPONTANEA'
+      });
+      fetch(TM_SUBMIT_URL + '?data=' + encodeURIComponent(JSON.stringify(payload))).catch(function(){});
+      // Enviar fotos
+      if (espFotos.length > 0) enviarFotos(espFotos, selectedVendedor + '_ESP', nombre, esp.ts);
+      espSection.insertBefore(buildEspontaneaCard(esp, esps2.length - 1), btnAddEsp);
+      espForm.classList.remove('open');
+      btnAddEsp.style.display = '';
+      ['esp-nombre','esp-direccion','esp-objetivo','esp-comentario'].forEach(function(id) { document.getElementById(id).value = ''; });
+      espFotos = [];
+      espFotoThumbs.innerHTML = '';
+    });
   });
 
   espSection.appendChild(espList);
