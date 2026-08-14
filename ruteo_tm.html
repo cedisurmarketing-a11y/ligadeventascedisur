@@ -545,30 +545,48 @@ function enviarVisita(c, btn, linkDeshacer) {
     });
 }
 
-function comprimirFoto(base64, callback) {
+function comprimirFoto(base64, maxPx, quality, callback) {
   var img = new Image();
   img.onload = function() {
     var canvas = document.createElement('canvas');
-    var maxW = 600, maxH = 600;
     var w = img.width, h = img.height;
-    if (w > maxW || h > maxH) {
-      if (w / h > maxW / maxH) { h = Math.round(h * maxW / w); w = maxW; }
-      else { w = Math.round(w * maxH / h); h = maxH; }
+    if (w > maxPx || h > maxPx) {
+      if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+      else { w = Math.round(w * maxPx / h); h = maxPx; }
     }
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    callback(canvas.toDataURL('image/jpeg', 0.5));
+    callback(canvas.toDataURL('image/jpeg', quality));
   };
   img.src = base64;
 }
 
 function enviarFotos(fotos, vendedor, codigo, ts) {
+  // Crear iframe oculto si no existe
+  if (!document.getElementById('foto-iframe')) {
+    var iframe = document.createElement('iframe');
+    iframe.name = 'foto-iframe';
+    iframe.id = 'foto-iframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
   fotos.forEach(function(base64, i) {
-    var nombre = String(vendedor).replace(/\s/g,'_') + '_' + codigo + '_' + String(ts).replace(/[/: ,]/g,'-') + '_' + (i+1) + '.jpg';
-    comprimirFoto(base64, function(compressed) {
-      var payload = JSON.stringify({ base64: compressed, nombre: nombre });
-      fetch(TM_SUBMIT_URL + '?foto=' + encodeURIComponent(payload))
-        .catch(function() {});
+    var nombre = String(vendedor).replace(/\s/g,'_') + '_' + codigo + '_' +
+      String(ts).replace(/[/: ,]/g,'-') + '_' + (i+1) + '.jpg';
+    comprimirFoto(base64, 800, 0.6, function(compressed) {
+      // Enviar via formulario al iframe — sin CORS, sin límite de tamaño
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = TM_SUBMIT_URL;
+      form.target = 'foto-iframe';
+      form.enctype = 'multipart/form-data';
+      form.style.display = 'none';
+      var f1 = document.createElement('input'); f1.name = 'base64'; f1.value = compressed;
+      var f2 = document.createElement('input'); f2.name = 'nombre'; f2.value = nombre;
+      form.appendChild(f1); form.appendChild(f2);
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(function() { form.remove(); }, 10000);
     });
   });
 }
