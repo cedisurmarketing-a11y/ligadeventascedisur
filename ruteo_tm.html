@@ -545,15 +545,31 @@ function enviarVisita(c, btn, linkDeshacer) {
     });
 }
 
+function comprimirFoto(base64, callback) {
+  var img = new Image();
+  img.onload = function() {
+    var canvas = document.createElement('canvas');
+    var maxW = 600, maxH = 600;
+    var w = img.width, h = img.height;
+    if (w > maxW || h > maxH) {
+      if (w / h > maxW / maxH) { h = Math.round(h * maxW / w); w = maxW; }
+      else { w = Math.round(w * maxH / h); h = maxH; }
+    }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', 0.5));
+  };
+  img.src = base64;
+}
+
 function enviarFotos(fotos, vendedor, codigo, ts) {
   fotos.forEach(function(base64, i) {
-    var nombre = vendedor.replace(/\s/g,'_') + '_' + codigo + '_' + ts.replace(/[/:]/g,'-') + '_' + (i+1) + '.jpg';
-    fetch(TM_SUBMIT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ tipo: 'foto', base64: base64, nombre: nombre })
-    }).catch(function() {});
+    var nombre = String(vendedor).replace(/\s/g,'_') + '_' + codigo + '_' + String(ts).replace(/[/: ,]/g,'-') + '_' + (i+1) + '.jpg';
+    comprimirFoto(base64, function(compressed) {
+      var payload = JSON.stringify({ base64: compressed, nombre: nombre });
+      fetch(TM_SUBMIT_URL + '?foto=' + encodeURIComponent(payload))
+        .catch(function() {});
+    });
   });
 }
 
