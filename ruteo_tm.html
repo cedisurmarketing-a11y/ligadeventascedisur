@@ -1442,30 +1442,38 @@ function buildCard(c, stateMap, isSearch) {
     btnEnviar.disabled = true;
   } else {
     btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
-    btnEnviar.addEventListener('click', function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); });
   }
   detail.appendChild(btnEnviar);
 
-  // Link para deshacer envío
+  // Link deshacer — siempre visible
   var linkDeshacer = document.createElement('div');
-  linkDeshacer.style.cssText = 'text-align:center;margin-top:6px;' + (tmData2.enviada ? '' : 'display:none');
+  linkDeshacer.style.cssText = 'text-align:center;margin-top:6px';
   var btnDeshacer = document.createElement('button');
   btnDeshacer.style.cssText = 'background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;font-family:"DM Sans",sans-serif;padding:4px';
-  btnDeshacer.textContent = 'Deshacer envío';
+  btnDeshacer.textContent = tmData2.enviada ? 'Deshacer envío' : 'Cancelar / resetear visita';
   btnDeshacer.addEventListener('click', function(e) {
     e.stopPropagation();
-    if (!confirm('¿Deshacer el envío de esta visita?')) return;
+    var accion = tmData2.enviada ? '¿Deshacer el envío de esta visita?' : '¿Cancelar y borrar los datos de esta visita?';
+    if (!confirm(accion)) return;
     var d = getTMData(selectedVendedor, codigo);
     delete d.enviada; delete d.enviadaTs;
+    d.visitada = false; d.visitadaTs = '';
+    d.comentario = ''; d.revision = ''; d.checklist = []; d.checkComments = [];
     saveTMData(selectedVendedor, codigo, d);
     btnEnviar.classList.remove('enviado');
     btnEnviar.disabled = false;
     btnEnviar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Enviar visita';
-    btnEnviar.onclick = function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); };
-    linkDeshacer.style.display = 'none';
+    btnEnviar.onclick = function(ev) { ev.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); };
+    btnDeshacer.textContent = 'Cancelar / resetear visita';
+    // Recargar la tarjeta para reflejar el reset
+    render();
   });
   linkDeshacer.appendChild(btnDeshacer);
   detail.appendChild(linkDeshacer);
+
+  if (!tmData2.enviada) {
+    btnEnviar.addEventListener('click', function(e) { e.stopPropagation(); enviarVisita(c, btnEnviar, linkDeshacer); });
+  }
 
   // ── FIN TRADE MARKETING ────────────────────────────────────────────────────
 
@@ -1811,13 +1819,14 @@ function renderList(clients) {
   });
   content.appendChild(list);
 
-  // VISITAS ESPONTÁNEAS
+  // VISITAS ESPONTÁNEAS — solo las de la fecha seleccionada
   var espSection = document.createElement('div');
   espSection.className = 'espontanea-section';
 
   var espList = document.createElement('div');
   espList.id = 'esp-list';
-  var esps = getEspontaneas(selectedVendedor, selectedDay);
+  // Usar selectedDate como clave para que cada fecha tenga sus propias espontáneas
+  var esps = getEspontaneas(selectedVendedor, selectedDate);
   esps.forEach(function(esp, idx) { espSection.appendChild(buildEspontaneaCard(esp, idx)); });
 
   var btnAddEsp = document.createElement('button');
@@ -1887,9 +1896,9 @@ function renderList(clients) {
         fecha: selectedDate,
         ts: new Date().toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
       };
-      var esps2 = getEspontaneas(selectedVendedor, selectedDay);
+      var esps2 = getEspontaneas(selectedVendedor, selectedDate);
       esps2.push(esp);
-      saveEspontaneas(selectedVendedor, selectedDay, esps2);
+      saveEspontaneas(selectedVendedor, selectedDate, esps2);
       var payload = Object.assign({}, esp, {
         vendedor: selectedVendedor,
         nombreComercial: esp.nombre,
@@ -2000,23 +2009,17 @@ const GVIZ_URL = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/
 
 function loadData() {
   document.getElementById('app-content').innerHTML = '<div class="loader">Cargando planilla...</div>';
-
-  // Intentar fetch directo
-  fetch(GVIZ_URL)
-    .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    })
-    .then(function(text) {
-      var parsed = parseCSV(text).map(normalizarFila).filter(function(r) {
-        return r['VENDEDOR'] && r['VENDEDOR'].trim();
-      });
-      if (parsed.length === 0) throw new Error('Sin datos');
-      allData = parsed;
+  fetch(TM_SUBMIT_URL + '?getClientes=1')
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
+      if (json.error) throw new Error(json.error);
+      if (!Array.isArray(json) || json.length === 0) throw new Error('Sin datos');
+      allData = json.map(normalizarFila).filter(function(r) { return r['VENDEDOR'] && r['VENDEDOR'].trim(); });
+      if (allData.length === 0) throw new Error('Sin filas válidas');
       setupSelect();
     })
     .catch(function(err) {
-      console.warn('fetch directo falló:', err.message, '— intentando JSONP...');
+      console.warn('Apps Script falló, intentando JSONP...', err.message);
       loadDataJSONP();
     });
 }
