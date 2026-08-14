@@ -1654,7 +1654,17 @@ function renderList(clients) {
   const list = document.createElement('div');
   list.className = 'list';
   clients.sort(function(a,b) { return getOrden(a) - getOrden(b); });
-  clients.forEach(function(c) { list.appendChild(buildCard(c, stateMap, false)); });
+  clients.forEach(function(c) {
+    try {
+      var card = buildCard(c, stateMap, false);
+      if (card) list.appendChild(card);
+    } catch(err) {
+      var errDiv = document.createElement('div');
+      errDiv.style.cssText = 'background:#fde;border:1px solid #c00;border-radius:8px;padding:10px;margin:4px 0;font-size:12px;color:#c00';
+      errDiv.textContent = '⚠ Error en ' + (c['NOMBRE COMERCIAL'] || '?') + ': ' + err.message;
+      list.appendChild(errDiv);
+    }
+  });
   content.appendChild(list);
 
   // VISITAS ESPONTÁNEAS
