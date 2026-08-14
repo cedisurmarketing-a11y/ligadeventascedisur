@@ -515,12 +515,6 @@ function enviarVisita(c, btn, linkDeshacer) {
         var d = getTMData(selectedVendedor, codigo);
         d.enviada = true; d.enviadaTs = ts;
         saveTMData(selectedVendedor, codigo, d);
-        // Guardar en historial
-        pushHistorial(selectedVendedor, codigo, {
-          fecha: selectedDate,
-          visitada: payload.visitada,
-          comentario: payload.comentario
-        });
         if (linkDeshacer) linkDeshacer.style.display = 'block';
         // Enviar fotos en background si las hay
         if (fotos.length > 0) enviarFotos(fotos, selectedVendedor, codigo, ts);
@@ -553,19 +547,6 @@ function enviarFotos(fotos, vendedor, codigo, ts) {
 }
 
 var selectedDate = new Date().toISOString().slice(0,10);
-
-// ── HISTORIAL DE VISITAS ──────────────────────────────────────────────────────
-function histKey(v, c) { return 'tm_hist_' + v + '_' + c; }
-function getHistorial(v, c) {
-  try { return JSON.parse(localStorage.getItem(histKey(v,c)) || '[]'); }
-  catch { return []; }
-}
-function pushHistorial(v, c, entry) {
-  var h = getHistorial(v, c);
-  h.unshift(entry);
-  if (h.length > 5) h = h.slice(0, 5);
-  localStorage.setItem(histKey(v,c), JSON.stringify(h));
-}
 
 // ── VISITAS ESPONTÁNEAS ───────────────────────────────────────────────────────
 function espKey(v, d) { return 'tm_esp_' + v + '_' + d; }
@@ -1197,8 +1178,9 @@ function buildCard(c, stateMap, isSearch) {
   if (geoGuardada) detail.appendChild(geoChip);
 
   // ── REORDENAR ──────────────────────────────────────────────────────────────
-  var hist = getHistorial(selectedVendedor, codigo).slice(0, 3);
-  if (hist.length > 0) {
+  var histAll = getHistorial(selectedVendedor);
+  var histCliente = ((histAll[codigo] || []).slice(-3)).reverse();
+  if (histCliente.length > 0) {
     var histDiv = document.createElement('div');
     histDiv.style.cssText = 'padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px';
     var histLbl = document.createElement('div');
@@ -1206,11 +1188,10 @@ function buildCard(c, stateMap, isSearch) {
     histLbl.textContent = 'Últimas visitas';
     var histRow = document.createElement('div');
     histRow.className = 'hist-row';
-    hist.forEach(function(h) {
+    histCliente.forEach(function(h) {
       var pill = document.createElement('span');
-      pill.className = 'hist-pill ' + (h.visitada ? 'v' : 'nv');
-      pill.textContent = (h.visitada ? '✓ ' : '✗ ') + (h.fecha || '');
-      pill.title = h.comentario || '';
+      pill.className = 'hist-pill ' + (h.estado === 'bought' ? 'v' : 'nv');
+      pill.textContent = (h.estado === 'bought' ? '✓ ' : '✗ ') + (h.fecha || '').slice(5).split('-').reverse().join('/');
       histRow.appendChild(pill);
     });
     histDiv.appendChild(histLbl);
