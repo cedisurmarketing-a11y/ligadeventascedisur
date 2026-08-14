@@ -471,7 +471,7 @@ function currentWeekKey() {
 function storageKey(v, d) { return 'ruteo2_' + v + '_' + d + '_' + currentWeekKey(); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
-const TM_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbz8Wq36PvLfd1PZJo1v7Bh0UP4hBSnff-eemu58F8EhDS8o2Q6B2FBxu-ukITDfHBtM/exec';
+const TM_SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbwApp5Z0VafRTGgE3CSKzBlx76ROR5IdTAS7j5Kd81jj9akZMkQpmwpZJMF4MJKlvz2/exec';
 
 function enviarVisita(c, btn, linkDeshacer) {
   var codigo = c['CODIGO CLIENTE'];
@@ -479,12 +479,21 @@ function enviarVisita(c, btn, linkDeshacer) {
   var fotos = getTMFotos(selectedVendedor, codigo);
   var checklist = tmData.checklist || [];
 
-  var clientChecks = [];
+  var clientChecksEnv = [];
   for (var ci = 1; ci <= 5; ci++) {
     var v = c['CHECK' + ci];
-    if (v && v.trim()) clientChecks.push(v.trim());
+    if (v && v.trim()) clientChecksEnv.push(v.trim());
   }
-  var checksTildados = clientChecks.filter(function(_, idx) { return checklist[idx]; });
+  var checksTildados = clientChecksEnv.filter(function(_, idx) { return checklist[idx]; });
+
+  // Combinar check tildado + su comentario
+  var checkComentsCombined = [];
+  clientChecksEnv.forEach(function(item, idx) {
+    if (checklist[idx]) {
+      var comentCheck = (tmData.checkComments || [])[idx] || '';
+      checkComentsCombined.push(comentCheck.trim() ? item + ': ' + comentCheck.trim() : item);
+    }
+  });
 
   var payload = {
     vendedor: selectedVendedor,
@@ -495,7 +504,7 @@ function enviarVisita(c, btn, linkDeshacer) {
     visitadaTs: tmData.visitadaTs || '',
     comentario: tmData.comentario || '',
     checklist: checksTildados,
-    checkComments: (tmData.checkComments || []),
+    checkComments: checkComentsCombined,
     revision: tmData.revision || '',
     fechaReal: selectedDate,
     tipo: 'RUTEO'
