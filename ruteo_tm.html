@@ -558,35 +558,32 @@ function comprimirFoto(base64, maxPx, quality, callback) {
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     callback(canvas.toDataURL('image/jpeg', quality));
   };
+  img.onerror = function() { callback(base64); };
   img.src = base64;
 }
 
 function enviarFotos(fotos, vendedor, codigo, ts) {
-  // Crear iframe oculto si no existe
-  if (!document.getElementById('foto-iframe')) {
-    var iframe = document.createElement('iframe');
-    iframe.name = 'foto-iframe';
-    iframe.id = 'foto-iframe';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-  }
-  fotos.forEach(function(base64, i) {
-    var nombre = String(vendedor).replace(/\s/g,'_') + '_' + codigo + '_' +
-      String(ts).replace(/[/: ,]/g,'-') + '_' + (i+1) + '.jpg';
-    comprimirFoto(base64, 800, 0.6, function(compressed) {
-      // Enviar via formulario al iframe — sin CORS, sin límite de tamaño
-      var form = document.createElement('form');
-      form.method = 'POST';
-      form.action = TM_SUBMIT_URL;
-      form.target = 'foto-iframe';
-      form.enctype = 'multipart/form-data';
-      form.style.display = 'none';
-      var f1 = document.createElement('input'); f1.name = 'base64'; f1.value = compressed;
-      var f2 = document.createElement('input'); f2.name = 'nombre'; f2.value = nombre;
-      form.appendChild(f1); form.appendChild(f2);
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(function() { form.remove(); }, 10000);
+  fotos.forEach(function(base64, fotoIdx) {
+    comprimirFoto(base64, 500, 0.4, function(compressed) {
+      var nombre = String(vendedor).replace(/\s/g,'_') + '_' + codigo + '_' +
+        String(ts).replace(/[/: ,]/g,'-') + '_' + (fotoIdx+1) + '.jpg';
+      var CHUNK = 1500;
+      var total = Math.ceil(compressed.length / CHUNK);
+      var id    = nombre.replace(/[^a-zA-Z0-9_\-]/g,'') + '_' + Date.now();
+      function enviarChunk(n) {
+        if (n > total) return;
+        var parte = compressed.substring((n-1)*CHUNK, n*CHUNK);
+        var url = TM_SUBMIT_URL +
+          '?chunk=' + n +
+          '&total=' + total +
+          '&id='    + encodeURIComponent(id) +
+          '&nombre='+ encodeURIComponent(nombre) +
+          '&data='  + encodeURIComponent(parte);
+        fetch(url)
+          .then(function() { setTimeout(function() { enviarChunk(n+1); }, 150); })
+          .catch(function() { setTimeout(function() { enviarChunk(n+1); }, 400); });
+      }
+      enviarChunk(1);
     });
   });
 }
