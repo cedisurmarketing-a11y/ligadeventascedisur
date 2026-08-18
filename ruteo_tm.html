@@ -339,46 +339,48 @@ function jsonp(url, cb) {
   document.head.appendChild(el);
 }
 
-// ── CARGA DE DATOS ────────────────────────────────────────────
+// ── CARGA DE DATOS — CSV directo desde planilla publicada ─────
+// URL del CSV publicado (File → Share → Publish to web → CSV)
+var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSXcL5zHUgsgnArvVawb_xA_MawoL6Bt-3zyVae4hJUyHUft2hpRbXG0MbRJ840HSYzYGUGKM9RDCjI/pub?gid=0&single=true&output=csv';
+
 function loadData() {
   document.getElementById('app').innerHTML = '<div class="loader">Cargando planilla...</div>';
-
-  // Primero: Apps Script (no necesita la planilla pública)
-  jsonp(SCRIPT_URL, function(err, data) {
-    if (!err && Array.isArray(data) && data.length > 0) {
-      procesar(data); return;
-    }
-    // Segundo: GVIZ (necesita planilla pública — Compartir → Lector)
-    jsonp('https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?tqx=out:json&gid=0', function(err2, raw) {
-      if (!err2 && raw && raw.table) {
-        try {
-          var cols = raw.table.cols.map(function(c){return String(c.label||c.id||'').trim()});
-          var rows = (raw.table.rows||[]).map(function(r){
-            var o={};
-            (r.c||[]).forEach(function(cell,i){
-              if(!cell||cell.v==null){o[cols[i]]='';return;}
-              if(cell.v instanceof Date){
-                // GVIZ devuelve fechas como objetos Date → convertir a DD/MM/YYYY
-                var d=cell.v;
-                o[cols[i]]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-              } else {
-                o[cols[i]]=String(cell.v);
-              }
-            });
-            return o;
-          });
-          procesar(rows); return;
-        } catch(e){}
-      }
-      // Error total
+  fetch(CSV_URL + '&_t=' + Date.now())
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function(text) {
+      var rows = parseCSV(text);
+      procesar(rows);
+    })
+    .catch(function(err) {
+      console.warn('CSV falló:', err.message);
       document.getElementById('app').innerHTML =
-        '<div class="errbox"><strong>⚠ No se pudo cargar la planilla.</strong><br><br>'+
-        'Hacé una de estas dos cosas:<br>'+
-        '<b>Opción A</b> — Republicá el Apps Script con el código nuevo (ruteo_tm_backend_v3.gs)<br>'+
-        '<b>Opción B</b> — En Google Sheets: Compartir → Cualquier persona con el enlace → Lector<br><br>'+
-        'Después recargá esta página.</div>';
+        '<div class="errbox"><strong>⚠ No se pudo cargar la planilla.</strong><br><br>' +
+        'Verificá que la planilla esté publicada en la web:<br>' +
+        'Archivo → Compartir → Publicar en la web → CLIENTES → Publicar<br><br>' +
+        '<button onclick="loadData()" style="background:#254899;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;margin-top:8px">🔄 Reintentar</button></div>';
     });
-  });
+}
+
+function parseCSV(text) {
+  var lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, ''); });
+  return lines.slice(1).map(function(line) {
+    var vals = [], cur = '', inQ = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    vals.push(cur.trim());
+    var obj = {};
+    headers.forEach(function(h, i) { obj[h] = vals[i] || ''; });
+    return obj;
+  }).filter(function(r) { return r[headers[0]]; });
 }
 
 function procesar(rows) {
