@@ -354,7 +354,18 @@ function loadData() {
         try {
           var cols = raw.table.cols.map(function(c){return String(c.label||c.id||'').trim()});
           var rows = (raw.table.rows||[]).map(function(r){
-            var o={}; (r.c||[]).forEach(function(cell,i){o[cols[i]]=(cell&&cell.v!=null)?String(cell.v):'';}); return o;
+            var o={};
+            (r.c||[]).forEach(function(cell,i){
+              if(!cell||cell.v==null){o[cols[i]]='';return;}
+              if(cell.v instanceof Date){
+                // GVIZ devuelve fechas como objetos Date → convertir a DD/MM/YYYY
+                var d=cell.v;
+                o[cols[i]]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+              } else {
+                o[cols[i]]=String(cell.v);
+              }
+            });
+            return o;
           });
           procesar(rows); return;
         } catch(e){}
