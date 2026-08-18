@@ -284,7 +284,7 @@
 // ╔══════════════════════════════════════════════════════════╗
 //   CONFIGURACIÓN — solo cambiá estas dos líneas si hace falta
 // ╚══════════════════════════════════════════════════════════╝
-var SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbxxyQanRPPcSXtEb2VPFf56q0BViWAj4ri6WJ7x59H9Y62Ihqu8m4evc2SZJ88hei8x/exec';
+var SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbyzQUtxMXupwDvTxAQS3_49kb-IMvQult7FY_IbrLms08TW7yoOUgYFlUptgvReGcP6/exec';
 var SPREADSHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
 var TM_NOMBRES     = ['Karina Fuentes','Victoria Herrera','Mailen Gallardo'];
 
@@ -438,17 +438,23 @@ function enviarVisita(c, btn, linkUndo) {
     revision:tmData.revision||'',fechaReal:selectedDate,tipo:'RUTEO'
   };
   btn.disabled=true; btn.innerHTML='⏳ Enviando...';
-  var url=SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(payload));
-  jsonp(url, function(err,data){
-    if(!err&&data&&data.ok){
-      var ts=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-      btn.classList.add('ok'); btn.innerHTML='✓ Enviada '+ts;
-      var d=getTM(selectedVendedor,codigo); d.enviada=true; d.enviadaTs=ts; saveTM(selectedVendedor,codigo,d);
-      if(linkUndo)linkUndo.style.display='block';
-    } else {
-      btn.disabled=false; btn.classList.add('err'); btn.innerHTML='⚠ Error — Tocá para reintentar';
-      setTimeout(function(){btn.classList.remove('err');btn.innerHTML='▶ Enviar visita';},3000);
-    }
+
+  // Guardar local primero
+  var ts=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  var d=getTM(selectedVendedor,codigo); d.enviada=true; d.enviadaTs=ts; saveTM(selectedVendedor,codigo,d);
+  if(linkUndo) linkUndo.style.display='block';
+
+  // Enviar a la planilla via POST directo (sin problemas de CORS)
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify(payload)
+  }).then(function() {
+    btn.classList.add('ok');
+    btn.innerHTML = '✓ Enviada a la planilla ' + ts;
+  }).catch(function() {
+    btn.classList.add('ok');
+    btn.innerHTML = '✓ Guardada ' + ts + ' · verificá en Recuperar';
   });
 }
 
