@@ -211,6 +211,7 @@
   <div class="hdr-top">
     <span class="app-name">Ruteo de visitas</span>
     <div class="hdr-r">
+      <button class="btn-sm" onclick="loadData()" title="Actualizar datos de la planilla">🔄 Actualizar</button>
       <button class="btn-sm" onclick="abrirRecuperar()">📤 Recuperar</button>
       <button class="btn-srch" onclick="toggleSearch()">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M15 15l-3-3"/></svg>
@@ -283,7 +284,7 @@
 // ╔══════════════════════════════════════════════════════════╗
 //   CONFIGURACIÓN — solo cambiá estas dos líneas si hace falta
 // ╚══════════════════════════════════════════════════════════╝
-var SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbzPxx1vu1DxfYZhrgFogvG_XQ_Bn-DHg_e4sYNZu1EAMO9GBtrFHHUPVaBb-HMdvwbo/exec';
+var SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbxxyQanRPPcSXtEb2VPFf56q0BViWAj4ri6WJ7x59H9Y62Ihqu8m4evc2SZJ88hei8x/exec';
 var SPREADSHEET_ID = '1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE';
 var TM_NOMBRES     = ['Karina Fuentes','Victoria Herrera','Mailen Gallardo'];
 
@@ -341,7 +342,7 @@ function jsonp(url, cb) {
 
 // ── CARGA DE DATOS — CSV directo desde planilla publicada ─────
 // URL del CSV publicado (File → Share → Publish to web → CSV)
-var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSXcL5zHUgsgnArvVawb_xA_MawoL6Bt-3zyVae4hJUyHUft2hpRbXG0MbRJ840HSYzYGUGKM9RDCjI/pub?gid=0&single=true&output=csv';
+var CSV_URL = 'https://docs.google.com/spreadsheets/d/1r9urZLcX_WZ40yz2fzrogq6LrBW7rA7TNhrM4yhFDAE/export?format=csv&gid=0';
 
 function loadData() {
   document.getElementById('app').innerHTML = '<div class="loader">Cargando planilla...</div>';
