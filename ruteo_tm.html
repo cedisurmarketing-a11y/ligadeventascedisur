@@ -74,9 +74,9 @@
   .card.expanded .cname{-webkit-line-clamp:unset;overflow:visible}
 
   .sol-chip{display:none;margin-top:5px}
-  .freq-chip{display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;margin-top:4px;margin-right:4px}
-  .freq-chip.semanal{background:#E8EDFB;color:#1d3a8f;border:1px solid #b8c8f0}
-  .freq-chip.quincenal{background:#FFF5ED;color:#C2540A;border:1px solid #F5C99A}
+  .freq-chip{display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;margin-top:4px;margin-right:4px;letter-spacing:.02em}
+  .freq-chip.semanal{background:#e6f7ed;color:#1f7a42;border:1px solid #7dc99a}
+  .freq-chip.quincenal{background:#f0eaff;color:#6d28d9;border:1px solid #c4a8f0}
   .sol-chip.on{display:inline-flex;align-items:center;gap:4px;background:#F5F0FF;border:1px solid #C4B5FD;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:#7C3AED}
 
   .cacts{display:flex;gap:6px;align-items:center;flex-shrink:0}
@@ -404,7 +404,7 @@ function procesar(rows) {
 }
 
 function norm(row) {
-  var r={}; Object.keys(row).forEach(function(k){r[k.trim()]=String(row[k]);});
+  var r={}; Object.keys(row).forEach(function(k){r[k.trim().toUpperCase()]=String(row[k]);});
   if(!r['DIA CARGA DE PEDIDO']&&r['DIA VISITA'])r['DIA CARGA DE PEDIDO']=r['DIA VISITA'];
   for(var i=2;i<=6;i++){if(!r['CHECK'+i]&&r['CHECK '+i])r['CHECK'+i]=r['CHECK '+i];}
   if(!r['Canal actual (Presencial / Autogestión)'])r['Canal actual (Presencial / Autogestión)']='Presencial';
@@ -547,7 +547,7 @@ function getChecks(c){var a=[];for(var i=1;i<=5;i++){var v=c['CHECK'+i];if(v&&v.
 
 function buildCard(c, stateMap, isSearch) {
   var cod=c['CODIGO CLIENTE'], state=stateMap[cod];
-  var cc=canalClass(c['Canal actual (Presencial / Autogestión)']);
+  var cc=canalClass(c['CANAL ACTUAL (PRESENCIAL / AUTOGESTIÓN)']||c['Canal actual (Presencial / Autogestión)']||'');
   var sc=state==='bought'?' bought':state==='notbought'?' notbought':'';
   var dia=(c['DIA CARGA DE PEDIDO']||''), dlbl=dia.charAt(0)+dia.slice(1).toLowerCase();
   var sol=getSols()[cod];
@@ -566,11 +566,22 @@ function buildCard(c, stateMap, isSearch) {
   var nm=document.createElement('div'); nm.className='cname'; nm.textContent=c['NOMBRE COMERCIAL'];
   var sc2=document.createElement('div'); sc2.className='sol-chip'+(sol?' on':''); if(sol)sc2.innerHTML=tipoLbl(sol.tipo);
   // Chip de frecuencia
-  var freq=(c['FRECUENCIA']||'SEMANAL').toUpperCase().trim();
+  var freqVal=(c['FRECUENCIA']||'').trim();
+  var freq=freqVal.toUpperCase();
   var turno=(c['TURNO']||'').toUpperCase().trim();
   var freqChip=document.createElement('div');
-  freqChip.className='freq-chip '+(freq==='QUINCENAL'?'quincenal':'semanal');
-  freqChip.textContent=freq==='QUINCENAL'?'📆 Quincenal ('+turno+')':'📅 Semanal';
+  var isQuinc=freq.includes('QUINC')||freq==='15'||freq==='Q';
+  var isSem=freq.includes('SEM')||freq==='S'||freq==='1';
+  if(isQuinc){
+    freqChip.className='freq-chip quincenal';
+    freqChip.textContent='🔁 QUINCENAL'+(turno?' · '+turno:'');
+  } else if(isSem){
+    freqChip.className='freq-chip semanal';
+    freqChip.textContent='📅 SEMANAL';
+  } else {
+    freqChip.className=''; // sin chip si no tiene frecuencia definida
+    freqChip.textContent='';
+  }
   var ci=document.createElement('div'); ci.className='cinfo'; ci.appendChild(nm); ci.appendChild(freqChip); ci.appendChild(sc2);
   if(isSearch){var sub=document.createElement('div');sub.className='csub';sub.textContent=dlbl+' · '+c['LOCALIDAD'];ci.appendChild(sub);}
   var main=document.createElement('div'); main.className='cmain';
@@ -788,11 +799,13 @@ function render() {
   var semanaActual = getWeekNumber(selectedDate);
   var clients=vr.filter(function(r){
     // Filtro de frecuencia: SEMANAL (siempre) o QUINCENAL (semanas PAR o IMPAR)
-    var freq = (r['FRECUENCIA'] || 'SEMANAL').toUpperCase().trim();
+    var freq = (r['FRECUENCIA'] || '').toUpperCase().trim();
     if (freq === 'QUINCENAL') {
-      var turno = (r['TURNO'] || 'PAR').toUpperCase().trim();
+      var turno = (r['TURNO'] || '').toUpperCase().trim();
+      // Solo filtrar si TURNO está explícitamente definido
       if (turno === 'PAR'   && semanaActual % 2 !== 0) return false;
       if (turno === 'IMPAR' && semanaActual % 2 === 0) return false;
+      // Si TURNO está vacío → aparece todas las semanas
     }
     // Filtro de fecha
     var fe=(r['FECHA ESPECIFICA']||'').trim();
