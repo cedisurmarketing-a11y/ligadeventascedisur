@@ -294,6 +294,14 @@ var modalData = null, tipoSel = null;
 var selectedDate = new Date().toISOString().slice(0,10);
 
 // ── Semana ────────────────────────────────────────────────────
+function getWeekNumber(dateStr) {
+  var d = new Date(dateStr + 'T12:00:00');
+  var day = d.getDay(), diff = (day === 0) ? -6 : 1 - day;
+  var mon = new Date(d); mon.setDate(d.getDate() + diff); mon.setHours(0,0,0,0);
+  var soy = new Date(mon.getFullYear(), 0, 1);
+  return Math.ceil(((mon - soy) / 86400000 + soy.getDay() + 1) / 7);
+}
+
 function weekKey() {
   var now=new Date(), day=now.getDay(), diff=(day===0)?-6:1-day;
   var mon=new Date(now); mon.setDate(now.getDate()+diff); mon.setHours(0,0,0,0);
@@ -435,7 +443,8 @@ function enviarVisita(c, btn, linkUndo) {
     vendedor:selectedVendedor,nombreComercial:c['NOMBRE COMERCIAL']||'',codigo:codigo,
     dia:selectedDay,visitada:tmData.visitada||false,visitadaTs:tmData.visitadaTs||'',
     comentario:tmData.comentario||'',checklist:tild,checkComments:ccomb,
-    revision:tmData.revision||'',fechaReal:selectedDate,tipo:'RUTEO'
+    revision:tmData.revision||'',fechaReal:selectedDate,tipo:'RUTEO',
+    objComentario:(function(){try{return localStorage.getItem('objcom_'+selectedVendedor+'_'+codigo)||'';}catch(e){return '';}})()
   };
   btn.disabled=true; btn.innerHTML='⏳ Enviando...';
 
@@ -611,6 +620,33 @@ function buildCard(c, stateMap, isSearch) {
   var savedChecks=tmData.checklist||[];
   objBlk.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:32px;height:32px;background:rgba(255,255,255,.18);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="22" y1="12" x2="18" y2="12"/></svg></div><div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.8)">Objetivo de la visita</div></div><div style="background:rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;margin-bottom:'+(clientChecks.length>0?'10px':'0')+'"><div style="font-size:14px;font-weight:600;color:#fff;line-height:1.5">'+(c['OBJETIVO']||'—')+'</div></div>';
 
+  // Textarea de comentario del objetivo
+  var objComWrap = document.createElement('div');
+  objComWrap.style.cssText = 'margin-top:8px;margin-bottom:4px';
+  var objComTA = document.createElement('textarea');
+  objComTA.style.cssText = 'width:100%;border:none;background:rgba(255,255,255,0.13);border-radius:8px;padding:8px 10px;font-size:13px;color:#fff;font-family:"DM Sans",sans-serif;resize:none;outline:none;min-height:40px;box-sizing:border-box;line-height:1.5';
+  objComTA.placeholder = 'Comentario sobre el objetivo...';
+  var objComKey = 'objcom_' + selectedVendedor + '_' + cod;
+  try { objComTA.value = localStorage.getItem(objComKey) || ''; } catch(e) {}
+  objComTA.addEventListener('click', function(e){ e.stopPropagation(); });
+  objComTA.addEventListener('blur', function(){
+    try { localStorage.setItem(objComKey, objComTA.value); } catch(e) {}
+  });
+  // Mic para el comentario del objetivo
+  var objComMic = document.createElement('button');
+  objComMic.style.cssText = 'background:rgba(255,255,255,0.2);border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;flex-shrink:0';
+  objComMic.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/></svg>';
+  var objComSt = document.createElement('div');
+  objComSt.className = 'mic-st';
+  objComMic.addEventListener('click', function(e){ e.stopPropagation(); startMic(objComTA, objComMic, objComSt); });
+  var objComRow = document.createElement('div');
+  objComRow.style.cssText = 'display:flex;align-items:flex-start;gap:4px';
+  objComRow.appendChild(objComTA);
+  objComRow.appendChild(objComMic);
+  objComWrap.appendChild(objComRow);
+  objComWrap.appendChild(objComSt);
+  objBlk.appendChild(objComWrap);
+
   if(clientChecks.length>0){
     var cldiv=document.createElement('div'); cldiv.style.cssText='display:flex;flex-direction:column;gap:0';
     clientChecks.forEach(function(item,idx){
@@ -707,7 +743,16 @@ function render() {
   dp.onchange=function(){selectedDate=dp.value;render();};
 
   var vr=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase();});
+  var semanaActual = getWeekNumber(selectedDate);
   var clients=vr.filter(function(r){
+    // Filtro de frecuencia: SEMANAL (siempre) o QUINCENAL (semanas PAR o IMPAR)
+    var freq = (r['FRECUENCIA'] || 'SEMANAL').toUpperCase().trim();
+    if (freq === 'QUINCENAL') {
+      var turno = (r['TURNO'] || 'PAR').toUpperCase().trim();
+      if (turno === 'PAR'   && semanaActual % 2 !== 0) return false;
+      if (turno === 'IMPAR' && semanaActual % 2 === 0) return false;
+    }
+    // Filtro de fecha
     var fe=(r['FECHA ESPECIFICA']||'').trim();
     if(fe)return fe===selectedDate;
     var d=new Date(selectedDate+'T12:00:00');
@@ -746,7 +791,7 @@ function render() {
     var esp={nombre:n,direccion:document.getElementById('ed').value.trim(),objetivo:document.getElementById('eo').value.trim(),comentario:document.getElementById('ec').value.trim(),fecha:selectedDate,ts:new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})};
     var esps=getEsp(selectedVendedor,selectedDate);esps.push(esp);saveEsp(selectedVendedor,selectedDate,esps);
     var payload=Object.assign({},esp,{vendedor:selectedVendedor,nombreComercial:n,codigo:'ESP',dia:selectedDay,visitada:true,visitadaTs:esp.ts,checklist:[],revision:'',fechaReal:selectedDate,tipo:'ESPONTANEA'});
-    jsonp(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(payload)),function(){});
+    fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}).catch(function(){});
     espsec.insertBefore(buildEspCard(esp,esps.length-1),badd);
     eform.classList.remove('open');badd.style.display='';
     ['en','ed','eo','ec'].forEach(function(id){document.getElementById(id).value='';});
@@ -802,7 +847,7 @@ function abrirRecuperar(){
         if(!cd){btn.textContent='Sin datos';return;}btn.textContent='Enviando...';btn.disabled=true;
         var ccs=[];for(var i2=1;i2<=5;i2++){var vv=cd['CHECK'+i2];if(vv&&vv.trim())ccs.push(vv.trim());}
         var pl={vendedor:v,nombreComercial:cd['NOMBRE COMERCIAL']||c,codigo:c,dia:'',visitada:d.visitada||false,visitadaTs:d.visitadaTs||'',comentario:d.comentario||'',checklist:ccs.filter(function(_,i3){return(d.checklist||[])[i3];}),checkComments:[],revision:d.revision||'',fechaReal:'',tipo:'RUTEO'};
-        jsonp(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(pl)),function(err,resp){if(!err&&resp&&resp.ok){btn.textContent='✓ Enviado';btn.style.background='#2D8A52';}else{btn.textContent='Error — reintentar';btn.disabled=false;btn.style.background='#c0392b';}});
+        fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(pl)}).then(function(){btn.textContent='✓ Enviado';btn.style.background='#2D8A52';}).catch(function(){btn.textContent='Error — reintentar';btn.disabled=false;btn.style.background='#c0392b';});
       };}(data,cdata,brenv,cod,vend));
       hdr.appendChild(tit);hdr.appendChild(brenv);item.appendChild(hdr);item.appendChild(ddet);lista.appendChild(item);n++;
     }catch(e){}
