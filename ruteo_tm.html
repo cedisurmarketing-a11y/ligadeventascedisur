@@ -74,6 +74,9 @@
   .card.expanded .cname{-webkit-line-clamp:unset;overflow:visible}
 
   .sol-chip{display:none;margin-top:5px}
+  .freq-chip{display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;margin-top:4px;margin-right:4px}
+  .freq-chip.semanal{background:#E8EDFB;color:#1d3a8f;border:1px solid #b8c8f0}
+  .freq-chip.quincenal{background:#FFF5ED;color:#C2540A;border:1px solid #F5C99A}
   .sol-chip.on{display:inline-flex;align-items:center;gap:4px;background:#F5F0FF;border:1px solid #C4B5FD;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:#7C3AED}
 
   .cacts{display:flex;gap:6px;align-items:center;flex-shrink:0}
@@ -562,7 +565,13 @@ function buildCard(c, stateMap, isSearch) {
   var acts=document.createElement('div'); acts.className='cacts'; acts.appendChild(bchk); acts.appendChild(bx);
   var nm=document.createElement('div'); nm.className='cname'; nm.textContent=c['NOMBRE COMERCIAL'];
   var sc2=document.createElement('div'); sc2.className='sol-chip'+(sol?' on':''); if(sol)sc2.innerHTML=tipoLbl(sol.tipo);
-  var ci=document.createElement('div'); ci.className='cinfo'; ci.appendChild(nm); ci.appendChild(sc2);
+  // Chip de frecuencia
+  var freq=(c['FRECUENCIA']||'SEMANAL').toUpperCase().trim();
+  var turno=(c['TURNO']||'').toUpperCase().trim();
+  var freqChip=document.createElement('div');
+  freqChip.className='freq-chip '+(freq==='QUINCENAL'?'quincenal':'semanal');
+  freqChip.textContent=freq==='QUINCENAL'?'📆 Quincenal ('+turno+')':'📅 Semanal';
+  var ci=document.createElement('div'); ci.className='cinfo'; ci.appendChild(nm); ci.appendChild(freqChip); ci.appendChild(sc2);
   if(isSearch){var sub=document.createElement('div');sub.className='csub';sub.textContent=dlbl+' · '+c['LOCALIDAD'];ci.appendChild(sub);}
   var main=document.createElement('div'); main.className='cmain';
   var num=document.createElement('div'); num.className='cnum'; num.textContent=c['ORDEN'];
@@ -669,7 +678,33 @@ function buildCard(c, stateMap, isSearch) {
         lbl.style.color=d.checklist[idx]?'rgba(255,255,255,.5)':'#fff';
         lbl.style.textDecoration=d.checklist[idx]?'line-through':'none';
       });
-      row.appendChild(box);row.appendChild(lbl);cldiv.appendChild(row);
+      row.appendChild(box);row.appendChild(lbl);
+      // Comentario por checklist — con micrófono
+      var chkComDiv=document.createElement('div');
+      chkComDiv.style.cssText='padding:3px 0 8px 32px;border-bottom:1px solid rgba(255,255,255,.08)';
+      if(idx===clientChecks.length-1) chkComDiv.style.borderBottom='none';
+      var chkRow=document.createElement('div'); chkRow.style.cssText='display:flex;align-items:flex-start;gap:5px';
+      var chkTA=document.createElement('textarea');
+      chkTA.style.cssText='flex:1;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,0.12);border-radius:7px;padding:6px 9px;font-size:12px;color:#fff;font-family:"DM Sans",sans-serif;resize:none;outline:none;min-height:36px;box-sizing:border-box;line-height:1.4';
+      chkTA.placeholder='💬 Comentario del check...';
+      var tmNow=getTM(selectedVendedor,cod);
+      chkTA.value=(tmNow.checkComments&&tmNow.checkComments[idx])||'';
+      chkTA.addEventListener('click',function(e){e.stopPropagation();});
+      chkTA.addEventListener('blur',function(){
+        var d=getTM(selectedVendedor,cod);
+        if(!d.checkComments)d.checkComments=[];
+        d.checkComments[idx]=chkTA.value;
+        saveTM(selectedVendedor,cod,d);
+      });
+      var chkMic=document.createElement('button');
+      chkMic.style.cssText='background:rgba(255,255,255,.18);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px';
+      chkMic.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/></svg>';
+      var chkMicSt=document.createElement('div'); chkMicSt.className='mic-st';
+      chkMic.addEventListener('click',function(e){e.stopPropagation();startMic(chkTA,chkMic,chkMicSt);});
+      chkRow.appendChild(chkTA); chkRow.appendChild(chkMic);
+      chkComDiv.appendChild(chkRow); chkComDiv.appendChild(chkMicSt);
+      cldiv.appendChild(row);
+      cldiv.appendChild(chkComDiv);
     });
     objBlk.appendChild(cldiv);
   }
