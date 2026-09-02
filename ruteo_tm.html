@@ -405,7 +405,7 @@ function procesar(rows) {
 
 function norm(row) {
   var r={}; Object.keys(row).forEach(function(k){r[k.trim().toUpperCase()]=String(row[k]);});
-  if(!r['DIA CARGA DE PEDIDO']&&r['DIA VISITA'])r['DIA CARGA DE PEDIDO']=r['DIA VISITA'];
+  
   for(var i=2;i<=6;i++){if(!r['CHECK'+i]&&r['CHECK '+i])r['CHECK'+i]=r['CHECK '+i];}
   if(!r['Canal actual (Presencial / Autogestión)'])r['Canal actual (Presencial / Autogestión)']='Presencial';
   if(!r['CODIGO CLIENTE'])r['CODIGO CLIENTE']=r['NOMBRE COMERCIAL']||Math.random().toString(36).slice(2);
@@ -514,7 +514,7 @@ function saveSol(codigo,data){var m=getSols();m[codigo]=data;localStorage.setIte
 function tipoLbl(t){if(t==='orden')return'📋 Cambio de orden';if(t==='dia')return'📅 Cambio de día';return'🗑️ Eliminar del ruteo';}
 function moverCliente(codigo,dir){
   var vr=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase();});
-  var dc=vr.filter(function(r){return r['DIA CARGA DE PEDIDO'].toUpperCase()===selectedDay;});
+  var dc=vr.filter(function(r){return r['DIA VISITA'].toUpperCase()===selectedDay;});
   dc.sort(function(a,b){return getOrd(a)-getOrd(b);});
   var idx=dc.findIndex(function(r){return r['CODIGO CLIENTE']===codigo;});
   if(idx<0)return; var ni=idx+dir; if(ni<0||ni>=dc.length)return;
@@ -532,7 +532,7 @@ function cerrarJornadasPendientes(){
     var fe=new Date(); fe.setDate(fe.getDate()-i);
     var fs=fe.toISOString().slice(0,10); if(fs>=hoy)continue;
     var dn=['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][fe.getDay()];
-    var cls=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase()&&r['DIA CARGA DE PEDIDO'].toUpperCase()===dn;});
+    var cls=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase()&&r['DIA VISITA'].toUpperCase()===dn;});
     if(!cls.length)continue;
     var hist=getHist(selectedVendedor), pc=cls[0]['CODIGO CLIENTE'];
     if(hist[pc]&&hist[pc].some(function(e){return e.fecha===fs;}))continue;
@@ -549,7 +549,7 @@ function buildCard(c, stateMap, isSearch) {
   var cod=c['CODIGO CLIENTE'], state=stateMap[cod];
   var cc=canalClass(c['CANAL ACTUAL (PRESENCIAL / AUTOGESTIÓN)']||c['Canal actual (Presencial / Autogestión)']||'');
   var sc=state==='bought'?' bought':state==='notbought'?' notbought':'';
-  var dia=(c['DIA CARGA DE PEDIDO']||''), dlbl=dia.charAt(0)+dia.slice(1).toLowerCase();
+  var dia=(c['DIA VISITA']||''), dlbl=dia.charAt(0)+dia.slice(1).toLowerCase();
   var sol=getSols()[cod];
 
   var card=document.createElement('div'); card.className='card '+cc+sc; card.dataset.canal=cc;
@@ -569,12 +569,20 @@ function buildCard(c, stateMap, isSearch) {
   var freqVal=(c['FRECUENCIA']||'').trim();
   var freq=freqVal.toUpperCase();
   var turno=(c['TURNO']||'').toUpperCase().trim();
-  var isQuinc=freq.includes('QUINC')||freq==='15'||freq==='Q';
-  var isSem=freq.includes('SEM')||freq==='S'||freq==='1';
+  var isQ1=freq==='Q-1'||freq==='Q1'||freq==='QUINCENAL-1';
+  var isQ2=freq==='Q-2'||freq==='Q2'||freq==='QUINCENAL-2';
+  var isQuinc=isQ1||isQ2||freq.includes('QUINC');
+  var isSem=freq.includes('SEM')||freq==='S';
   var freqChip=document.createElement('div');
-  if(isQuinc){
+  if(isQ1){
     freqChip.className='freq-chip quincenal';
-    freqChip.textContent='🔁 QUINCENAL'+(turno?' · '+turno:'');
+    freqChip.textContent='🔁 QUINCENAL · S1';
+  } else if(isQ2){
+    freqChip.className='freq-chip quincenal';
+    freqChip.style.background='#fff0f8';
+    freqChip.style.borderColor='#f0a8d0';
+    freqChip.style.color='#a0286d';
+    freqChip.textContent='🔁 QUINCENAL · S2';
   } else if(isSem){
     freqChip.className='freq-chip semanal';
     freqChip.textContent='📅 SEMANAL';
@@ -798,21 +806,20 @@ function render() {
   var vr=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase();});
   var semanaActual = getWeekNumber(selectedDate);
   var clients=vr.filter(function(r){
-    // Filtro de frecuencia: SEMANAL (siempre) o QUINCENAL (semanas PAR o IMPAR)
+    // Filtro de frecuencia
     var freq = (r['FRECUENCIA'] || '').toUpperCase().trim();
-    if (freq === 'QUINCENAL') {
-      var turno = (r['TURNO'] || '').toUpperCase().trim();
-      // Solo filtrar si TURNO está explícitamente definido
-      if (turno === 'PAR'   && semanaActual % 2 !== 0) return false;
-      if (turno === 'IMPAR' && semanaActual % 2 === 0) return false;
-      // Si TURNO está vacío → aparece todas las semanas
+    if (freq === 'Q-1' || freq === 'Q1') {
+      if (semanaActual % 2 === 0) return false;  // Q-1 → semanas impares
+    } else if (freq === 'Q-2' || freq === 'Q2') {
+      if (semanaActual % 2 !== 0) return false;  // Q-2 → semanas pares
     }
+    // SEMANAL o vacío → aparece siempre
     // Filtro de fecha
     var fe=(r['FECHA ESPECIFICA']||'').trim();
     if(fe)return fe===selectedDate;
     var d=new Date(selectedDate+'T12:00:00');
     var dn=['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'][d.getDay()];
-    return r['DIA CARGA DE PEDIDO']&&r['DIA CARGA DE PEDIDO'].toUpperCase()===dn;
+    return r['DIA VISITA']&&r['DIA VISITA'].toUpperCase()===dn;
   });
 
   if(!clients.length){
@@ -886,7 +893,7 @@ function enviarSolicitud(){
   var nombre=modalData['NOMBRE COMERCIAL'];cerrarModal();if(searchQuery)renderBusqueda();else render();
   document.getElementById('cdet-txt').innerHTML='<strong>'+nombre+'</strong><br>'+tipoLbl(tipoSel)+'<br><span style="color:#3D8A56">'+detalle+'</span>';
   document.getElementById('cov').classList.add('open');
-  var pl={vendedor:selectedVendedor,codigo:cod,cliente:modalData['NOMBRE COMERCIAL'],localidad:modalData['LOCALIDAD'],diaActual:modalData['DIA CARGA DE PEDIDO'],tipo:tipoSel==='orden'?'Cambio de orden':tipoSel==='dia'?'Cambio de día':'Eliminar del ruteo',detalle:detalle};
+  var pl={vendedor:selectedVendedor,codigo:cod,cliente:modalData['NOMBRE COMERCIAL'],localidad:modalData['LOCALIDAD'],diaActual:modalData['DIA VISITA'],tipo:tipoSel==='orden'?'Cambio de orden':tipoSel==='dia'?'Cambio de día':'Eliminar del ruteo',detalle:detalle};
   fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(pl)}).catch(function(){});
 }
 function cerrarCov(){document.getElementById('cov').classList.remove('open');}
