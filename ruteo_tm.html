@@ -376,34 +376,28 @@ function subirFotos(fotos, vendedor, codigo, nombreCliente, statusEl) {
 
   function subirUna(fotoIdx) {
     if(fotoIdx>=totalFotos){
-      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ Fotos enviadas a Drive';}
+      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ Fotos en Drive';}
       return;
     }
     comprimirFoto(fotos[fotoIdx], function(compressed) {
       var nombre = codigo+'_'+new Date().toISOString().slice(0,10)+'_'+(fotoIdx+1)+'.jpg';
-      var CHUNK  = 3500; // ~3.5KB por chunk — seguro para no-cors POST
+      var CHUNK  = 1800;
       var total  = Math.ceil(compressed.length / CHUNK);
       var id     = codigo+'_'+Date.now()+'_'+fotoIdx;
-      var enviados = 0;
 
-      function postChunk(n) {
-        if(n > total) {
-          enviadas++;
-          setTimeout(function(){ subirUna(fotoIdx+1); }, 300);
-          return;
-        }
+      function envChunk(n) {
+        if(n > total){ enviadas++; setTimeout(function(){subirUna(fotoIdx+1);},300); return; }
         var parte = compressed.substring((n-1)*CHUNK, n*CHUNK);
-        var payload = {
-          tipo:'FOTO_CHUNK',
-          id:id, n:n, total:total,
-          codigo:codigo, nombre:nombre,
-          data:parte
-        };
-        fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(payload)})
-          .then(function(){ setTimeout(function(){ postChunk(n+1); }, 200); })
-          .catch(function(){ setTimeout(function(){ postChunk(n+1); }, 400); });
+        var url = SCRIPT_URL+'?fchunk=1&fn='+n+'&ftotal='+total+
+          '&fid='+encodeURIComponent(id)+
+          '&fnombre='+encodeURIComponent(nombre)+
+          '&fcodigo='+encodeURIComponent(codigo)+
+          '&fdata='+encodeURIComponent(parte);
+        jsonp(url, function(err){
+          setTimeout(function(){envChunk(n+1);}, err?400:150);
+        });
       }
-      postChunk(1);
+      envChunk(1);
     });
   }
   subirUna(0);
@@ -527,33 +521,27 @@ function enviarVisita(c, btn, linkUndo) {
     revision:tmData.revision||'',fechaReal:selectedDate,tipo:'RUTEO',
     objComentario:(function(){try{return localStorage.getItem('objcom_'+selectedVendedor+'_'+codigo)||'';}catch(e){return '';}})()
   };
-  btn.disabled=true; btn.innerHTML='⏳ Enviando...';
+  btn.innerHTML='⏳ Enviando...';
 
-  // Guardar local primero
-  var ts=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-  var d=getTM(selectedVendedor,codigo); d.enviada=true; d.enviadaTs=ts; saveTM(selectedVendedor,codigo,d);
-  if(linkUndo) linkUndo.style.display='block';
-
-  // Enviar a la planilla via POST directo (sin problemas de CORS)
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: JSON.stringify(payload)
-  }).then(function() {
-    btn.classList.add('ok');
-    btn.innerHTML = '✓ Enviada a la planilla ' + ts;
-    // Subir fotos en background
+  // Enviar via GET (más confiable con Apps Script)
+  var url=SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(payload));
+  jsonp(url, function(err,data){
+    var ts=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    var d=getTM(selectedVendedor,codigo); d.enviada=true; d.enviadaTs=ts; saveTM(selectedVendedor,codigo,d);
+    if(linkUndo) linkUndo.style.display='block';
+    if(!err&&data&&data.ok){
+      btn.classList.add('ok'); btn.innerHTML='✓ Enviada '+ts;
+    } else {
+      btn.classList.add('ok'); btn.innerHTML='✓ Guardada '+ts+' · usá Recuperar si no llegó';
+    }
+    // Subir fotos
     var fotos=getTMFotos(selectedVendedor,codigo);
     if(fotos.length>0){
-      var fotoStatusEl=null;
-      // Buscar el elemento fotoStatus de esta tarjeta
       var card=document.getElementById('card-'+codigo);
-      if(card) fotoStatusEl=card.querySelector('.foto-status');
-      subirFotos(fotos,selectedVendedor,codigo,c['NOMBRE COMERCIAL'],fotoStatusEl);
+      var fotoSt=card?card.querySelector('.foto-status'):null;
+      subirFotos(fotos,selectedVendedor,codigo,c['NOMBRE COMERCIAL'],fotoSt);
     }
-  }).catch(function() {
-    btn.classList.add('ok');
-    btn.innerHTML = '✓ Guardada ' + ts + ' · verificá en Recuperar';
+  });
   });
 }
 
@@ -994,9 +982,7 @@ function render() {
       direccion:esp.direccion||''
     };
     if(bok2){bok2.textContent='⏳ Enviando...';bok2.disabled=true;}
-    fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)})
-      .then(function(){if(bok2){bok2.textContent='✓ Enviada';bok2.style.background='#2D8A52';}})
-      .catch(function(){if(bok2){bok2.textContent='✓ Guardada local';bok2.style.background='#918052';}});
+    jsonp(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(payload)),function(){if(bok2){bok2.textContent='✓ Enviada';bok2.style.background='#2D8A52';}});
     espsec.insertBefore(buildEspCard(esp,esps.length-1),badd);
     eform.classList.remove('open');badd.style.display='';
     ['en','ed','eo','ec'].forEach(function(id){document.getElementById(id).value='';});
@@ -1026,7 +1012,7 @@ function enviarSolicitud(){
   document.getElementById('cdet-txt').innerHTML='<strong>'+nombre+'</strong><br>'+tipoLbl(tipoSel)+'<br><span style="color:#3D8A56">'+detalle+'</span>';
   document.getElementById('cov').classList.add('open');
   var pl={vendedor:selectedVendedor,codigo:cod,cliente:modalData['NOMBRE COMERCIAL'],localidad:modalData['LOCALIDAD'],diaActual:modalData['DIA VISITA'],tipo:tipoSel==='orden'?'Cambio de orden':tipoSel==='dia'?'Cambio de día':'Eliminar del ruteo',detalle:detalle};
-  fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(pl)}).catch(function(){});
+  jsonp(SCRIPT_URL+'?solicitud=1&data='+encodeURIComponent(JSON.stringify(pl)),function(){});
 }
 function cerrarCov(){document.getElementById('cov').classList.remove('open');}
 
@@ -1052,7 +1038,7 @@ function abrirRecuperar(){
         if(!cd){btn.textContent='Sin datos';return;}btn.textContent='Enviando...';btn.disabled=true;
         var ccs=[];for(var i2=1;i2<=5;i2++){var vv=cd['CHECK'+i2];if(vv&&vv.trim())ccs.push(vv.trim());}
         var pl={vendedor:v,nombreComercial:cd['NOMBRE COMERCIAL']||c,codigo:c,dia:'',visitada:d.visitada||false,visitadaTs:d.visitadaTs||'',comentario:d.comentario||'',checklist:ccs.filter(function(_,i3){return(d.checklist||[])[i3];}),checkComments:[],revision:d.revision||'',fechaReal:'',tipo:'RUTEO'};
-        fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(pl)}).then(function(){btn.textContent='✓ Enviado';btn.style.background='#2D8A52';}).catch(function(){btn.textContent='Error — reintentar';btn.disabled=false;btn.style.background='#c0392b';});
+        jsonp(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(pl)),function(err,resp){if(!err&&resp&&resp.ok){btn.textContent='✓ Enviado';btn.style.background='#2D8A52';}else{btn.textContent='Error — reintentar';btn.disabled=false;btn.style.background='#c0392b';}});
       };}(data,cdata,brenv,cod,vend));
       hdr.appendChild(tit);hdr.appendChild(brenv);item.appendChild(hdr);item.appendChild(ddet);lista.appendChild(item);n++;
     }catch(e){}
