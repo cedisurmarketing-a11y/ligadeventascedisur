@@ -372,37 +372,29 @@ function comprimirFoto(base64, cb) {
 function subirFotos(fotos, vendedor, codigo, nombreCliente, statusEl) {
   if(!fotos||!fotos.length)return;
   if(statusEl){statusEl.className='foto-status sending';statusEl.textContent='📤 Subiendo '+fotos.length+' foto(s)...';}
-  var CHUNK=1800, subidas=0, errores=0;
-  fotos.forEach(function(base64, fotoIdx) {
-    comprimirFoto(base64, function(compressed) {
-      var nombre = codigo+'_'+String(nombreCliente).replace(/[^a-zA-Z0-9]/g,'_').slice(0,20)+'_'+
-        new Date().toISOString().slice(0,10)+'_'+(fotoIdx+1)+'.jpg';
-      var total=Math.ceil(compressed.length/CHUNK);
-      var id=codigo+'_'+Date.now()+'_'+fotoIdx;
-      var errChunk=0;
-      function enviarChunk(n){
-        if(n>total){
-          subidas++;
-          if(subidas+errores===fotos.length&&statusEl){
-            statusEl.className='foto-status '+(errores?'err':'ok');
-            statusEl.textContent=errores?'⚠ '+errores+' foto(s) sin subir':'✓ Fotos en Drive';
-          }
-          return;
-        }
-        var parte=compressed.substring((n-1)*CHUNK,n*CHUNK);
-        var url=SCRIPT_URL+'?fchunk=1&n='+n+'&total='+total+
-          '&id='+encodeURIComponent(id)+
-          '&nombre='+encodeURIComponent(nombre)+
-          '&codigo='+encodeURIComponent(codigo)+
-          '&data='+encodeURIComponent(parte);
-        jsonp(url,function(err){
-          if(err&&errChunk<2){errChunk++;setTimeout(function(){enviarChunk(n);},1000);}
-          else{setTimeout(function(){enviarChunk(n+1);},120);}
-        });
-      }
-      enviarChunk(1);
+  var subidas=0, total=fotos.length;
+
+  function subirUna(idx) {
+    if(idx>=total){
+      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ '+subidas+' foto(s) en Drive';}
+      return;
+    }
+    comprimirFoto(fotos[idx], function(compressed) {
+      var nombre=codigo+'_'+new Date().toISOString().slice(0,10)+'_'+(idx+1)+'.jpg';
+      var payload={
+        tipo:'FOTO',
+        vendedor:vendedor,
+        codigo:codigo,
+        cliente:nombreCliente,
+        nombre:nombre,
+        data:compressed
+      };
+      fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)})
+        .then(function(){subidas++;subirUna(idx+1);})
+        .catch(function(){subirUna(idx+1);});
     });
-  });
+  }
+  subirUna(0);
 }
 
 // ── JSONP universal — carga cualquier URL que soporte ?callback ─
