@@ -413,7 +413,7 @@ function jsonp(url, cb) {
   var timer = setTimeout(function(){
     if(done)return; done=true; cleanup();
     cb(new Error('Timeout'),null);
-  }, 12000);
+  }, 30000);
   window[name] = function(data){
     if(done)return; done=true; clearTimeout(timer); cleanup();
     cb(null,data);
