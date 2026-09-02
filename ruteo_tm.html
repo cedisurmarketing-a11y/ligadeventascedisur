@@ -569,20 +569,20 @@ function buildCard(c, stateMap, isSearch) {
   var freqVal=(c['FRECUENCIA']||'').trim();
   var freq=freqVal.toUpperCase();
   var turno=(c['TURNO']||'').toUpperCase().trim();
-  var freqChip=document.createElement('div');
   var isQuinc=freq.includes('QUINC')||freq==='15'||freq==='Q';
   var isSem=freq.includes('SEM')||freq==='S'||freq==='1';
+  var freqChip=document.createElement('div');
   if(isQuinc){
     freqChip.className='freq-chip quincenal';
     freqChip.textContent='🔁 QUINCENAL'+(turno?' · '+turno:'');
   } else if(isSem){
     freqChip.className='freq-chip semanal';
     freqChip.textContent='📅 SEMANAL';
-  } else {
-    freqChip.className=''; // sin chip si no tiene frecuencia definida
-    freqChip.textContent='';
   }
-  var ci=document.createElement('div'); ci.className='cinfo'; ci.appendChild(nm); ci.appendChild(freqChip); ci.appendChild(sc2);
+  var ci=document.createElement('div'); ci.className='cinfo';
+  ci.appendChild(nm);
+  if(isQuinc||isSem) ci.appendChild(freqChip);
+  ci.appendChild(sc2);
   if(isSearch){var sub=document.createElement('div');sub.className='csub';sub.textContent=dlbl+' · '+c['LOCALIDAD'];ci.appendChild(sub);}
   var main=document.createElement('div'); main.className='cmain';
   var num=document.createElement('div'); num.className='cnum'; num.textContent=c['ORDEN'];
@@ -845,8 +845,19 @@ function render() {
     var n=document.getElementById('en').value.trim();if(!n){alert('Ingresá el nombre');return;}
     var esp={nombre:n,direccion:document.getElementById('ed').value.trim(),objetivo:document.getElementById('eo').value.trim(),comentario:document.getElementById('ec').value.trim(),fecha:selectedDate,ts:new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})};
     var esps=getEsp(selectedVendedor,selectedDate);esps.push(esp);saveEsp(selectedVendedor,selectedDate,esps);
-    var payload=Object.assign({},esp,{vendedor:selectedVendedor,nombreComercial:n,codigo:'ESP',dia:selectedDay,visitada:true,visitadaTs:esp.ts,checklist:[],revision:'',fechaReal:selectedDate,tipo:'ESPONTANEA'});
-    fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}).catch(function(){});
+    var bok2=eform.querySelector('#bok');
+    var payload={
+      vendedor:selectedVendedor, nombreComercial:n, codigo:'ESP',
+      dia:selectedDay, visitada:true, visitadaTs:esp.ts,
+      comentario:esp.comentario||'', checklist:[], revision:'',
+      fechaReal:selectedDate, tipo:'ESPONTANEA',
+      objComentario:esp.objetivo||'',
+      direccion:esp.direccion||''
+    };
+    if(bok2){bok2.textContent='⏳ Enviando...';bok2.disabled=true;}
+    fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)})
+      .then(function(){if(bok2){bok2.textContent='✓ Enviada';bok2.style.background='#2D8A52';}})
+      .catch(function(){if(bok2){bok2.textContent='✓ Guardada local';bok2.style.background='#918052';}});
     espsec.insertBefore(buildEspCard(esp,esps.length-1),badd);
     eform.classList.remove('open');badd.style.display='';
     ['en','ed','eo','ec'].forEach(function(id){document.getElementById(id).value='';});
