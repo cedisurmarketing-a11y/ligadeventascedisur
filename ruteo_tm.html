@@ -226,6 +226,7 @@
     <span class="app-name">Ruteo de visitas</span>
     <div class="hdr-r">
       <button class="btn-sm" onclick="loadData()" title="Actualizar datos de la planilla">🔄 Actualizar</button>
+      <button class="btn-sm" onclick="testConexion()" id="btn-test">🔌 Test</button>
       <button class="btn-sm" onclick="abrirRecuperar()">📤 Recuperar</button>
       <button class="btn-srch" onclick="toggleSearch()">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M15 15l-3-3"/></svg>
@@ -1049,6 +1050,38 @@ function cerrarRec(){document.getElementById('rmod').style.display='none';}
 
 document.getElementById('moverlay').addEventListener('click',function(e){if(e.target===this)cerrarModal();});
 document.getElementById('cov').addEventListener('click',function(e){if(e.target===this)cerrarCov();});
+
+function testConexion() {
+  var btn = document.getElementById('btn-test');
+  btn.textContent = '⏳ Probando...';
+  btn.style.background = 'rgba(255,255,255,.3)';
+
+  // Test 1: CSV (carga de clientes)
+  fetch(CSV_URL + '&_t=' + Date.now())
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var csvOk = t.length > 100;
+      // Test 2: Apps Script
+      jsonp(SCRIPT_URL + '?ping=1', function(err, data){
+        var scriptOk = !err && data;
+        var msg = '📊 CSV: ' + (csvOk?'✓':'✗') + '  |  🔌 Script: ' + (scriptOk?'✓':'✗');
+        if(csvOk && scriptOk){
+          btn.textContent = '✓ Todo OK';
+          btn.style.background = '#2D8A52';
+        } else {
+          btn.textContent = msg;
+          btn.style.background = csvOk ? '#c0392b' : '#918052';
+        }
+        alert(msg + '\n\nCSV: ' + (csvOk?'OK - planilla accesible':'ERROR') +
+              '\nScript: ' + (scriptOk?'OK - Apps Script responde':'ERROR - no llega al script'));
+      });
+    })
+    .catch(function(){
+      btn.textContent = '✗ CSV Error';
+      btn.style.background = '#c0392b';
+      alert('ERROR: No se puede acceder a la planilla CSV');
+    });
+}
 
 loadData();
 </script>
