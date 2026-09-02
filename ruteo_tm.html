@@ -182,6 +182,17 @@
   .esp-ch{font-size:13px;font-weight:600;color:#5b3ea8;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
   .esp-cd{font-size:12px;color:var(--text2);line-height:1.5}
 
+  .foto-zone{border:2px dashed #b0c4e8;border-radius:10px;padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;background:#f5f8ff;text-align:center;margin-top:10px}
+  .foto-zone:active{background:#e8eef8}
+  .foto-zone-txt{font-size:13px;color:#254899;font-weight:700}
+  .foto-zone-sub{font-size:11px;color:#5070a8}
+  .foto-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .foto-thumb{width:70px;height:70px;border-radius:8px;object-fit:cover;border:1.5px solid #c5d4f0;cursor:pointer}
+  .foto-count{font-size:11px;color:#5070a8;margin-top:4px}
+  .foto-status{font-size:11px;font-weight:600;margin-top:4px}
+  .foto-status.ok{color:#2D8A52}
+  .foto-status.err{color:#c0392b}
+  .foto-status.sending{color:#254899}
   .errbox{margin:1rem 1.25rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1rem;font-size:13px;color:#991b1b;line-height:1.8}
   .loader{text-align:center;padding:3rem;color:var(--text3);font-size:14px}
   .empty{text-align:center;padding:3rem 1.5rem;color:var(--text3)}
@@ -234,6 +245,7 @@
   <div class="date-bar" id="date-bar" style="display:none">
     <label for="dpick">📅 Fecha:</label>
     <input type="date" id="dpick" class="date-inp">
+    <span id="semana-lbl" style="font-size:11px;color:rgba(255,255,255,.6);margin-left:4px"></span>
   </div>
 </div>
 
@@ -297,6 +309,14 @@ var modalData = null, tipoSel = null;
 var selectedDate = new Date().toISOString().slice(0,10);
 
 // ── Semana ────────────────────────────────────────────────────
+function actualizarSemanaLbl() {
+  var lbl = document.getElementById('semana-lbl');
+  if (!lbl) return;
+  var wn = getWeekNumber(selectedDate);
+  var turno = (wn % 2 !== 0) ? 'S1 (impar)' : 'S2 (par)';
+  lbl.textContent = '· Semana ' + wn + ' · ' + turno;
+}
+
 function getWeekNumber(dateStr) {
   var d = new Date(dateStr + 'T12:00:00');
   var day = d.getDay(), diff = (day === 0) ? -6 : 1 - day;
@@ -330,6 +350,60 @@ function saveEsp(v,d,a){localStorage.setItem('esp_'+v+'_'+d,JSON.stringify(a))}
 function getHist(v){try{return JSON.parse(localStorage.getItem('hist_'+v)||'{}')}catch{return{}}}
 function saveHist(v,h){localStorage.setItem('hist_'+v,JSON.stringify(h))}
 function getUltimas(v,c,n){return(getHist(v)[c]||[]).slice(-n)}
+
+// ── FOTOS ─────────────────────────────────────────────────────
+function tmFotosKey(v,c){return 'tmf_'+v+'_'+c+'_'+weekKey()}
+function getTMFotos(v,c){try{return JSON.parse(localStorage.getItem(tmFotosKey(v,c))||'[]')}catch{return[]}}
+function saveTMFotos(v,c,f){localStorage.setItem(tmFotosKey(v,c),JSON.stringify(f))}
+
+function comprimirFoto(base64, cb) {
+  var img = new Image();
+  img.onload = function() {
+    var maxPx=800, w=img.width, h=img.height;
+    if(w>maxPx||h>maxPx){if(w>h){h=Math.round(h*maxPx/w);w=maxPx;}else{w=Math.round(w*maxPx/h);h=maxPx;}}
+    var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    cb(canvas.toDataURL('image/jpeg',0.45));
+  };
+  img.onerror=function(){cb(base64);};
+  img.src=base64;
+}
+
+function subirFotos(fotos, vendedor, codigo, nombreCliente, statusEl) {
+  if(!fotos||!fotos.length)return;
+  if(statusEl){statusEl.className='foto-status sending';statusEl.textContent='📤 Subiendo '+fotos.length+' foto(s)...';}
+  var CHUNK=1800, subidas=0, errores=0;
+  fotos.forEach(function(base64, fotoIdx) {
+    comprimirFoto(base64, function(compressed) {
+      var nombre = codigo+'_'+String(nombreCliente).replace(/[^a-zA-Z0-9]/g,'_').slice(0,20)+'_'+
+        new Date().toISOString().slice(0,10)+'_'+(fotoIdx+1)+'.jpg';
+      var total=Math.ceil(compressed.length/CHUNK);
+      var id=codigo+'_'+Date.now()+'_'+fotoIdx;
+      var errChunk=0;
+      function enviarChunk(n){
+        if(n>total){
+          subidas++;
+          if(subidas+errores===fotos.length&&statusEl){
+            statusEl.className='foto-status '+(errores?'err':'ok');
+            statusEl.textContent=errores?'⚠ '+errores+' foto(s) sin subir':'✓ Fotos en Drive';
+          }
+          return;
+        }
+        var parte=compressed.substring((n-1)*CHUNK,n*CHUNK);
+        var url=SCRIPT_URL+'?fchunk=1&n='+n+'&total='+total+
+          '&id='+encodeURIComponent(id)+
+          '&nombre='+encodeURIComponent(nombre)+
+          '&codigo='+encodeURIComponent(codigo)+
+          '&data='+encodeURIComponent(parte);
+        jsonp(url,function(err){
+          if(err&&errChunk<2){errChunk++;setTimeout(function(){enviarChunk(n);},1000);}
+          else{setTimeout(function(){enviarChunk(n+1);},120);}
+        });
+      }
+      enviarChunk(1);
+    });
+  });
+}
 
 // ── JSONP universal — carga cualquier URL que soporte ?callback ─
 function jsonp(url, cb) {
@@ -464,6 +538,15 @@ function enviarVisita(c, btn, linkUndo) {
   }).then(function() {
     btn.classList.add('ok');
     btn.innerHTML = '✓ Enviada a la planilla ' + ts;
+    // Subir fotos en background
+    var fotos=getTMFotos(selectedVendedor,codigo);
+    if(fotos.length>0){
+      var fotoStatusEl=null;
+      // Buscar el elemento fotoStatus de esta tarjeta
+      var card=document.getElementById('card-'+codigo);
+      if(card) fotoStatusEl=card.querySelector('.foto-status');
+      subirFotos(fotos,selectedVendedor,codigo,c['NOMBRE COMERCIAL'],fotoStatusEl);
+    }
   }).catch(function() {
     btn.classList.add('ok');
     btn.innerHTML = '✓ Guardada ' + ts + ' · verificá en Recuperar';
@@ -569,10 +652,12 @@ function buildCard(c, stateMap, isSearch) {
   var freqVal=(c['FRECUENCIA']||'').trim();
   var freq=freqVal.toUpperCase();
   var turno=(c['TURNO']||'').toUpperCase().trim();
-  var isQ1=freq==='Q-1'||freq==='Q1'||freq==='QUINCENAL-1';
-  var isQ2=freq==='Q-2'||freq==='Q2'||freq==='QUINCENAL-2';
-  var isQuinc=isQ1||isQ2||freq.includes('QUINC');
-  var isSem=freq.includes('SEM')||freq==='S';
+  // Normalizar: quitar todo lo que no sea letra o número para comparar
+  var freqClean=freq.replace(/[^A-Z0-9]/g,'');
+  var isQ1=freqClean==='Q1'||freqClean==='QUINCENAL1';
+  var isQ2=freqClean==='Q2'||freqClean==='QUINCENAL2';
+  var isQuinc=isQ1||isQ2;
+  var isSem=freqClean.includes('SEM')||freqClean==='S';
   var freqChip=document.createElement('div');
   if(isQ1){
     freqChip.className='freq-chip quincenal';
@@ -773,6 +858,47 @@ function buildCard(c, stateMap, isSearch) {
   rw.appendChild(rta);rw.appendChild(rm);rvBlk.appendChild(rw);rvBlk.appendChild(rs);
   secRv.appendChild(rvTit);secRv.appendChild(rvBlk);det.appendChild(secRv);
 
+  // FOTOS DEL PUNTO DE VENTA
+  var secFoto=document.createElement('div'); secFoto.className='tm-sec'; secFoto.style.marginTop='10px';
+  var fotoTit=document.createElement('div'); fotoTit.className='tm-section-title'; fotoTit.style.color='#1d3a8f';
+  fotoTit.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1d3a8f" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Fotos del punto de venta';
+  var fotoInput=document.createElement('input'); fotoInput.type='file'; fotoInput.accept='image/*'; fotoInput.multiple=true; fotoInput.capture='environment'; fotoInput.style.display='none';
+  var fotoZone=document.createElement('div'); fotoZone.className='foto-zone';
+  fotoZone.innerHTML='<div class="foto-zone-txt">📷 Sacar o subir fotos</div><div class="foto-zone-sub">Góndola · Exhibición · Material POP</div>';
+  fotoZone.addEventListener('click',function(e){e.stopPropagation();fotoInput.click();});
+  var fotoThumbs=document.createElement('div'); fotoThumbs.className='foto-thumbs';
+  var fotoStatus=document.createElement('div'); fotoStatus.className='foto-status';
+  function buildFotoThumbs(){
+    fotoThumbs.innerHTML='';
+    var fotos=getTMFotos(selectedVendedor,cod);
+    fotos.forEach(function(src,idx){
+      var img=document.createElement('img'); img.className='foto-thumb'; img.src=src;
+      img.title='Tocá para eliminar';
+      img.addEventListener('click',function(e){e.stopPropagation();if(confirm('¿Eliminar esta foto?')){var f=getTMFotos(selectedVendedor,cod);f.splice(idx,1);saveTMFotos(selectedVendedor,cod,f);buildFotoThumbs();}});
+      fotoThumbs.appendChild(img);
+    });
+    if(getTMFotos(selectedVendedor,cod).length>0){
+      var cnt=document.createElement('div'); cnt.className='foto-count';
+      cnt.textContent=getTMFotos(selectedVendedor,cod).length+' foto(s) guardada(s) — se suben al enviar la visita';
+      fotoThumbs.appendChild(cnt);
+    }
+  }
+  buildFotoThumbs();
+  fotoInput.addEventListener('change',function(e){
+    e.stopPropagation();
+    var files=Array.from(e.target.files);
+    var fotos=getTMFotos(selectedVendedor,cod);
+    var remaining=5-fotos.length; var done=0;
+    files.slice(0,remaining).forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(ev){fotos.push(ev.target.result);done++;if(done===Math.min(files.length,remaining)){saveTMFotos(selectedVendedor,cod,fotos);buildFotoThumbs();}};
+      reader.readAsDataURL(file);
+    });
+    fotoInput.value='';
+  });
+  secFoto.appendChild(fotoTit); secFoto.appendChild(fotoInput); secFoto.appendChild(fotoZone); secFoto.appendChild(fotoThumbs); secFoto.appendChild(fotoStatus);
+  det.appendChild(secFoto);
+
   // Botón enviar
   var tmD2=getTM(selectedVendedor,cod);
   var btnS=document.createElement('button');
@@ -801,16 +927,18 @@ function render() {
   }
   var db=document.getElementById('date-bar'),dp=document.getElementById('dpick');
   db.style.display='flex'; if(!dp.value)dp.value=selectedDate;
-  dp.onchange=function(){selectedDate=dp.value;render();};
+  dp.onchange=function(){selectedDate=dp.value;actualizarSemanaLbl();render();};
+  actualizarSemanaLbl();
 
   var vr=allData.filter(function(r){return r['VENDEDOR'].toLowerCase()===selectedVendedor.toLowerCase();});
   var semanaActual = getWeekNumber(selectedDate);
   var clients=vr.filter(function(r){
     // Filtro de frecuencia
     var freq = (r['FRECUENCIA'] || '').toUpperCase().trim();
-    if (freq === 'Q-1' || freq === 'Q1') {
+    var freqC = freq.replace(/[^A-Z0-9]/g,''); // quitar guiones, espacios, etc.
+    if (freqC === 'Q1' || freqC === 'QUINCENAL1') {
       if (semanaActual % 2 === 0) return false;  // Q-1 → semanas impares
-    } else if (freq === 'Q-2' || freq === 'Q2') {
+    } else if (freqC === 'Q2' || freqC === 'QUINCENAL2') {
       if (semanaActual % 2 !== 0) return false;  // Q-2 → semanas pares
     }
     // SEMANAL o vacío → aparece siempre
