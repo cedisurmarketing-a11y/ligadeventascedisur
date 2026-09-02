@@ -372,26 +372,38 @@ function comprimirFoto(base64, cb) {
 function subirFotos(fotos, vendedor, codigo, nombreCliente, statusEl) {
   if(!fotos||!fotos.length)return;
   if(statusEl){statusEl.className='foto-status sending';statusEl.textContent='📤 Subiendo '+fotos.length+' foto(s)...';}
-  var subidas=0, total=fotos.length;
+  var enviadas=0, totalFotos=fotos.length;
 
-  function subirUna(idx) {
-    if(idx>=total){
-      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ '+subidas+' foto(s) en Drive';}
+  function subirUna(fotoIdx) {
+    if(fotoIdx>=totalFotos){
+      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ Fotos enviadas a Drive';}
       return;
     }
-    comprimirFoto(fotos[idx], function(compressed) {
-      var nombre=codigo+'_'+new Date().toISOString().slice(0,10)+'_'+(idx+1)+'.jpg';
-      var payload={
-        tipo:'FOTO',
-        vendedor:vendedor,
-        codigo:codigo,
-        cliente:nombreCliente,
-        nombre:nombre,
-        data:compressed
-      };
-      fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)})
-        .then(function(){subidas++;subirUna(idx+1);})
-        .catch(function(){subirUna(idx+1);});
+    comprimirFoto(fotos[fotoIdx], function(compressed) {
+      var nombre = codigo+'_'+new Date().toISOString().slice(0,10)+'_'+(fotoIdx+1)+'.jpg';
+      var CHUNK  = 3500; // ~3.5KB por chunk — seguro para no-cors POST
+      var total  = Math.ceil(compressed.length / CHUNK);
+      var id     = codigo+'_'+Date.now()+'_'+fotoIdx;
+      var enviados = 0;
+
+      function postChunk(n) {
+        if(n > total) {
+          enviadas++;
+          setTimeout(function(){ subirUna(fotoIdx+1); }, 300);
+          return;
+        }
+        var parte = compressed.substring((n-1)*CHUNK, n*CHUNK);
+        var payload = {
+          tipo:'FOTO_CHUNK',
+          id:id, n:n, total:total,
+          codigo:codigo, nombre:nombre,
+          data:parte
+        };
+        fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(payload)})
+          .then(function(){ setTimeout(function(){ postChunk(n+1); }, 200); })
+          .catch(function(){ setTimeout(function(){ postChunk(n+1); }, 400); });
+      }
+      postChunk(1);
     });
   }
   subirUna(0);
