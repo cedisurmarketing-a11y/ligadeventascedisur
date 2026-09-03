@@ -371,31 +371,47 @@ function comprimirFoto(base64, cb) {
 }
 
 function subirFotos(fotos, vendedor, codigo, nombreCliente, statusEl) {
-  if(!fotos||!fotos.length)return;
-  if(statusEl){statusEl.className='foto-status sending';statusEl.textContent='📤 Subiendo '+fotos.length+' foto(s)...';}
+  if(!fotos||!fotos.length){
+    if(statusEl){statusEl.className='foto-status';statusEl.textContent='Sin fotos';}
+    return;
+  }
+  if(statusEl){statusEl.className='foto-status sending';statusEl.textContent='📤 Preparando '+fotos.length+' foto(s)...';}
   var enviadas=0, totalFotos=fotos.length;
 
   function subirUna(fotoIdx) {
     if(fotoIdx>=totalFotos){
-      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ Fotos en Drive';}
+      if(statusEl){statusEl.className='foto-status ok';statusEl.textContent='✓ '+enviadas+' foto(s) enviadas a Drive';}
       return;
     }
+    if(statusEl) statusEl.textContent='📤 Comprimiendo foto '+(fotoIdx+1)+'/'+totalFotos+'...';
     comprimirFoto(fotos[fotoIdx], function(compressed) {
       var nombre = codigo+'_'+new Date().toISOString().slice(0,10)+'_'+(fotoIdx+1)+'.jpg';
       var CHUNK  = 1800;
       var total  = Math.ceil(compressed.length / CHUNK);
       var id     = codigo+'_'+Date.now()+'_'+fotoIdx;
+      if(statusEl) statusEl.textContent='📤 Enviando foto '+(fotoIdx+1)+'/'+totalFotos+' ('+total+' partes)...';
 
       function envChunk(n) {
-        if(n > total){ enviadas++; setTimeout(function(){subirUna(fotoIdx+1);},300); return; }
+        if(n > total){
+          enviadas++;
+          if(statusEl) statusEl.textContent='📤 Foto '+(fotoIdx+1)+' enviada. Procesando siguiente...';
+          setTimeout(function(){subirUna(fotoIdx+1);},300);
+          return;
+        }
+        if(statusEl) statusEl.textContent='📤 Foto '+(fotoIdx+1)+': parte '+n+'/'+total+'...';
         var parte = compressed.substring((n-1)*CHUNK, n*CHUNK);
         var url = SCRIPT_URL+'?fchunk=1&fn='+n+'&ftotal='+total+
           '&fid='+encodeURIComponent(id)+
           '&fnombre='+encodeURIComponent(nombre)+
           '&fcodigo='+encodeURIComponent(codigo)+
           '&fdata='+encodeURIComponent(parte);
-        jsonp(url, function(err){
-          setTimeout(function(){envChunk(n+1);}, err?400:150);
+        jsonp(url, function(err, data){
+          if(err){
+            if(statusEl) statusEl.textContent='⚠ Error parte '+n+' - reintentando...';
+            setTimeout(function(){envChunk(n);}, 1000);
+          } else {
+            setTimeout(function(){envChunk(n+1);}, 150);
+          }
         });
       }
       envChunk(1);
